@@ -19,6 +19,13 @@ class SaveData:
         self.food_items = label_maker.food_items
 
 
+class FoodItem:
+    def __init__(self):
+        self.name = ''
+        self.ingredients = ''
+        self.edited = False
+
+
 class LabelMaker:
     def __init__(self):
         # Window Properties
@@ -30,7 +37,7 @@ class LabelMaker:
         # Program Variables
         self.username = StringVar()
         self.address = StringVar()
-        self.food_items = {}
+        self.food_items = []
         self.selectable_items = []
         self.label_sizes = [(4, 1)]
         self.cur_date = datetime.datetime.now().strftime('%m-%d-%Y')
@@ -52,7 +59,7 @@ class LabelMaker:
                     raise TypeError
                 self.username.set(save_data.username_str)
                 self.address.set(save_data.address_str)
-                self.food_items = save_data.food_items
+                self.food_items = dict(save_data.food_items)
                 for key in self.food_items:
                     self.selectable_items.append(key)
             else:
@@ -79,11 +86,11 @@ class LabelMaker:
 
         self.item_name_label = tk.Label(self.root, text='Food Item:', font=(default_font, 12))
         self.item_name_label.place(x=10, y=50, anchor='w')
-        self.food_item_name = StringVar()
+        self.item_name = StringVar()
         self.item_name_box = ttk.Combobox(values=self.selectable_items, postcommand=self.dropdown_opened,
-                                          textvariable=self.food_item_name)
-        self.item_name_box.bind('<<ComboboxSelected>>', self.item_changed)
-        self.food_item_name.trace('w', self.combobox_edited)
+                                          textvariable=self.item_name)
+        self.item_name_box.bind('<<ComboboxSelected>>', self.dropdown_changed)
+        self.item_name.trace('w', self.combobox_edited)
         self.item_name_box.place(x=90, y=50, anchor='w')
 
         self.ingredients_label = tk.Label(self.root, text='Ingredients:', font=(default_font, 12))
@@ -184,41 +191,23 @@ class LabelMaker:
         self.root.after(150, self.instance_check)
 
     def save_item(self):
-        if not (food_item := self.item_name_box.get()):
+        if not self.item_name_box.get():
             return
         print('Save Item Function Run')
-        if food_item not in self.selectable_items or food_item not in self.food_items:
-            self.selectable_items.append(food_item)
-            self.item_name_box['values'] = self.selectable_items
-            self.food_items[food_item] = self.ingredients_entry.get('1.0', END)
-        else:
-            print('Overwrite existing value')
-            self.food_items[food_item] = self.ingredients_entry.get('1.0', END)
 
     def delete_item(self):
-        if not (food_item := self.item_name_box.get()):
+        if not self.item_name_box.get():
             return
         print('Delete Item Function Run')
-        if food_item in self.selectable_items:
-            self.selectable_items.pop(self.selectable_items.index(food_item))
-            self.item_name_box['values'] = self.selectable_items
-        if food_item in self.food_items:
-            del self.food_items[food_item]
 
     def textbox_edited(self, *_):
         print('Textbox edited')
-        textbox_contents = self.ingredients_entry.get('1.0', END).replace('\n', '')
-        self.ingredients_entry.delete('1.0', END)
-        self.ingredients_entry.insert('1.0', textbox_contents)
 
     def combobox_edited(self, *_):
         print('Combobox edited')
 
-    def item_changed(self, *_):
+    def dropdown_changed(self, *_):
         print('Dropdown Changed:', self.item_name_box.get())
-        if (food_item := self.item_name_box.get()) in self.food_items:
-            self.ingredients_entry.delete('1.0', END)
-            self.ingredients_entry.insert('1.0', self.food_items[food_item].replace('\n', ' '))
 
     def dropdown_opened(self, *_):
         print('Dropdown Opened; Current Contents:', self.item_name_box.get())
