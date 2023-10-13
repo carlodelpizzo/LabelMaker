@@ -11,6 +11,13 @@ version = '1.0'
 
 default_font = 'Arial'
 
+letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+           'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+capital_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+                   'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+valid_chars = ['_', '-', ' ', *letters, *capital_letters, *numbers]
+
 
 class SaveData:
     def __init__(self, label_maker: object):
@@ -20,10 +27,26 @@ class SaveData:
 
 
 class FoodItem:
-    def __init__(self):
-        self.name = ''
-        self.ingredients = ''
+    def __init__(self, name: str, ingredients: str):
+        self.name = name
+        self.ingredients = ingredients
+        self.saved_ingredients = ingredients
         self.edited = False
+
+    def get_name(self):
+        return f'*{self.name}' if self.edited else self.name
+
+    def save_item(self):
+        self.saved_ingredients = str(self.ingredients).replace('\n', '')
+        self.edited = False
+
+    def edit_item(self, ingredients: str):
+        self.edited = True
+        self.ingredients = ingredients.replace('\n', '')
+
+    def revert(self):
+        self.edited = False
+        self.ingredients = str(self.saved_ingredients).replace('\n', '')
 
 
 class LabelMaker:
@@ -38,7 +61,11 @@ class LabelMaker:
         self.username = StringVar()
         self.address = StringVar()
         self.food_items = []
+        self.food_items_dict = {}
         self.selectable_items = []
+        self.selected_item = None
+        self.auto_save = False
+        self.auto_save_name = ''
         self.label_sizes = [(4, 1)]
         self.cur_date = datetime.datetime.now().strftime('%m-%d-%Y')
         self.counter = 0
@@ -59,9 +86,9 @@ class LabelMaker:
                     raise TypeError
                 self.username.set(save_data.username_str)
                 self.address.set(save_data.address_str)
-                self.food_items = dict(save_data.food_items)
-                for key in self.food_items:
-                    self.selectable_items.append(key)
+                self.food_items = save_data.food_items
+                self.food_items_dict = {item.name: item for item in self.food_items}
+                self.selectable_items = [item.get_name() for item in self.food_items]
             else:
                 do_first_instance = True
 
@@ -91,6 +118,7 @@ class LabelMaker:
                                           textvariable=self.item_name)
         self.item_name_box.bind('<<ComboboxSelected>>', self.dropdown_changed)
         self.item_name.trace('w', self.combobox_edited)
+        self.item_name_box.bind('<KeyRelease>', self.combobox_user_edit)
         self.item_name_box.place(x=90, y=50, anchor='w')
 
         self.ingredients_label = tk.Label(self.root, text='Ingredients:', font=(default_font, 12))
@@ -111,13 +139,14 @@ class LabelMaker:
 
         # Mainloop
         self.root.after(0, self.instance_check)
-        # self.root.after(10000, self.auto_save)
         if do_first_instance:
             self.root.after(1, self.first_instance)
         self.root.mainloop()
 
         # Program exit
         if any((self.username.get(), self.address.get(), self.food_items)):
+            for item in self.food_items:
+                item.revert()
             with open(f'{self.program_dir}/savedata', 'wb') as file:
                 save_data = SaveData(self)
                 pickle.dump(save_data, file)
@@ -191,26 +220,94 @@ class LabelMaker:
         self.root.after(150, self.instance_check)
 
     def save_item(self):
-        if not self.item_name_box.get():
-            return
+        if self.selected_item:
+            self.selected_item.save_item()
+            self.ninja_update_combobox(self.selected_item.get_name())
+            self.ingredients_entry.delete('1.0', END)
+            self.ingredients_entry.insert('1.0', self.selected_item.ingredients)
+        else:
+            new_item = FoodItem(self.item_name_box.get(), self.ingredients_entry.get('1.0', END))
+            self.food_items.append(new_item)
+            self.food_items_dict[new_item.name] = new_item
+            self.selected_item = new_item
+        self.update_combobox()
         print('Save Item Function Run')
 
     def delete_item(self):
         if not self.item_name_box.get():
             return
+        if self.selected_item:
+            self.selectable_items.pop(self.selectable_items.index(self.selected_item.get_name()))
+            self.food_items.pop(self.food_items.index(self.selected_item))
+            del self.food_items_dict[self.selected_item.name]
+            self.selected_item = None
+            self.item_name_box.set('')
+            self.ingredients_entry.delete('1.0', END)
+            self.update_combobox()
         print('Delete Item Function Run')
 
-    def textbox_edited(self, *_):
+    def textbox_edited(self, event):
+        if event.keysym in ['Right', 'Left', 'Up', 'Down']:
+            return
+        if self.selected_item:
+            self.selected_item.edit_item(self.ingredients_entry.get('1.0', END))
+            self.ninja_update_combobox(self.selected_item.get_name())
+        self.update_combobox()
         print('Textbox edited')
 
     def combobox_edited(self, *_):
+        if not self.item_name_box.get():
+            return
+        if self.selected_item:
+            self.selected_item = None
+            self.ingredients_entry.delete('1.0', END)
         print('Combobox edited')
 
+    def combobox_user_edit(self, event):
+        if event.keysym in ['Right', 'Left']:
+            return
+        value = [char for char in self.item_name_box.get() if char in valid_chars]
+        value = ''.join(value)
+        self.ninja_update_combobox(value)
+        if item := self.food_items_dict.get(value):
+            self.ingredients_entry.delete('1.0', END)
+            self.ingredients_entry.insert('1.0', item.ingredients)
+            self.selected_item = item
+            self.ninja_update_combobox(item.get_name())
+        print('User edit')
+
     def dropdown_changed(self, *_):
+        if not (item_name := self.item_name_box.get().replace('*', '')):
+            return
+        if self.auto_save and self.auto_save_name != self.item_name_box.get():
+            new_item = FoodItem(self.auto_save_name, self.ingredients_entry.get('1.0', END))
+            self.food_items.append(new_item)
+            self.food_items_dict[new_item.name] = new_item
+            self.update_combobox()
+            self.auto_save_name = ''
+        self.auto_save = False
+        if item := self.food_items_dict.get(item_name):
+            self.ingredients_entry.delete('1.0', END)
+            self.ingredients_entry.insert('1.0', item.ingredients)
+            self.selected_item = item
         print('Dropdown Changed:', self.item_name_box.get())
 
     def dropdown_opened(self, *_):
+        if not self.selected_item and self.item_name_box.get():
+            self.auto_save = True
+            self.auto_save_name = self.item_name_box.get()
         print('Dropdown Opened; Current Contents:', self.item_name_box.get())
+
+    def update_combobox(self):
+        self.selectable_items = [item.get_name() for item in self.food_items]
+        self.item_name_box['values'] = self.selectable_items
+
+    def ninja_update_combobox(self, value: str):
+        selected_item = self.selected_item
+        textbox_contents = self.ingredients_entry.get('1.0', END).replace('\n', '')
+        self.item_name.set(value)
+        self.ingredients_entry.insert('1.0', textbox_contents)
+        self.selected_item = selected_item
 
 
 if __name__ == '__main__':
