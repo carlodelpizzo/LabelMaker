@@ -121,6 +121,10 @@ class LabelMaker:
         self.item_name_box.bind('<KeyRelease>', self.combobox_user_edit)
         self.item_name_box.place(x=90, y=50, anchor='w')
 
+        self.edit_name_button = tk.Button(self.root, text='\u270E',
+                                          command=lambda: self.edit_item_name(food_item=self.selected_item))
+        self.edit_name_button.place(x=240, y=50, anchor='w')
+
         self.ingredients_label = tk.Label(self.root, text='Ingredients:', font=(default_font, 12))
         self.ingredients_label.place(x=10, y=78, anchor='w')
         self.ingredients_entry = tk.Text(self.root,  width=30, height=9, font=(default_font, 12))
@@ -222,7 +226,7 @@ class LabelMaker:
     def save_item(self):
         if self.selected_item:
             self.selected_item.save_item()
-            self.ninja_update_combobox(self.selected_item.get_name())
+            self.update_combobox_text_only(self.selected_item.get_name())
             self.ingredients_entry.delete('1.0', END)
             self.ingredients_entry.insert('1.0', self.selected_item.ingredients)
         else:
@@ -246,12 +250,44 @@ class LabelMaker:
             self.update_combobox()
         print('Delete Item Function Run')
 
+    def edit_item_name(self, food_item):
+        def window_close():
+            if food_item.name != new_item_name.get():
+                del self.food_items_dict[food_item.name]
+                food_item.name = new_item_name.get()
+                self.food_items_dict[food_item.name] = food_item
+                self.update_combobox_text_only(food_item.name)
+                self.update_combobox()
+            window.destroy()
+        if not food_item:
+            return
+
+        new_item_name = StringVar()
+        new_item_name.set(food_item.name)
+
+        window = Toplevel(self.root)
+        window.grab_set()
+        window.focus()
+        window.transient(self.root)
+        window.title('Edit Item Name')
+        window.geometry('225x100')
+        window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
+        window.resizable(False, False)
+        window.protocol('WM_DELETE_WINDOW', window_close)
+
+        username_label = tk.Label(window, text='Item Name:', font=(default_font, 12))
+        username_label.place(x=112, y=29, anchor='s')
+        username_label_entry = tk.Entry(window, textvariable=new_item_name, font=(default_font, 12))
+        username_label_entry.place(x=112, y=31, anchor='n')
+
+        print('Edit item name')
+
     def textbox_edited(self, event):
         if event.keysym in ['Right', 'Left', 'Up', 'Down']:
             return
         if self.selected_item:
             self.selected_item.edit_item(self.ingredients_entry.get('1.0', END))
-            self.ninja_update_combobox(self.selected_item.get_name())
+            self.update_combobox_text_only(self.selected_item.get_name())
         self.update_combobox()
         print('Textbox edited')
 
@@ -268,12 +304,12 @@ class LabelMaker:
             return
         value = [char for char in self.item_name_box.get() if char in valid_chars]
         value = ''.join(value)
-        self.ninja_update_combobox(value)
+        self.update_combobox_text_only(value)
         if item := self.food_items_dict.get(value):
             self.ingredients_entry.delete('1.0', END)
             self.ingredients_entry.insert('1.0', item.ingredients)
             self.selected_item = item
-            self.ninja_update_combobox(item.get_name())
+            self.update_combobox_text_only(item.get_name())
         print('User edit')
 
     def dropdown_changed(self, *_):
@@ -281,6 +317,7 @@ class LabelMaker:
             return
         if self.auto_save and self.auto_save_name != self.item_name_box.get():
             new_item = FoodItem(self.auto_save_name, self.ingredients_entry.get('1.0', END))
+            new_item.edited = True
             self.food_items.append(new_item)
             self.food_items_dict[new_item.name] = new_item
             self.update_combobox()
@@ -302,7 +339,7 @@ class LabelMaker:
         self.selectable_items = [item.get_name() for item in self.food_items]
         self.item_name_box['values'] = self.selectable_items
 
-    def ninja_update_combobox(self, value: str):
+    def update_combobox_text_only(self, value: str):
         selected_item = self.selected_item
         textbox_contents = self.ingredients_entry.get('1.0', END).replace('\n', '')
         self.item_name.set(value)
