@@ -11,6 +11,9 @@ version = '1.0'
 
 default_font = 'Arial'
 
+program_dir = f'{os.getenv("APPDATA")}/LabelMaker'
+instance_dir = f'{program_dir}/instance'
+
 letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
            'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
 capital_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
@@ -43,6 +46,8 @@ class FoodItem:
     def edit_item(self, ingredients: str):
         self.edited = True
         self.ingredients = ingredients.replace('\n', '')
+        if self.ingredients == self.saved_ingredients:
+            self.edited = False
 
     def revert(self):
         self.edited = False
@@ -72,14 +77,12 @@ class LabelMaker:
 
         # File management
         do_first_instance = False
-        self.program_dir = f'{os.getenv("APPDATA")}/LabelMaker'
-        if not os.path.isdir(self.program_dir):
-            os.mkdir(self.program_dir)
+        if not os.path.isdir(program_dir):
+            os.mkdir(program_dir)
             do_first_instance = True
         else:
             # Load saved information
-            print('...loading saved data')
-            if os.path.isfile(file_path := f'{self.program_dir}/savedata'):
+            if os.path.isfile(file_path := f'{program_dir}/savedata'):
                 with open(file_path, 'rb') as file:
                     save_data = pickle.load(file)
                 if type(save_data) is not SaveData:
@@ -93,7 +96,6 @@ class LabelMaker:
                 do_first_instance = True
 
         # Check for running instance
-        instance_dir = f'{self.program_dir}/instance'
         if not os.path.isdir(instance_dir):
             os.mkdir(instance_dir)
         else:
@@ -145,21 +147,22 @@ class LabelMaker:
         self.root.after(0, self.instance_check)
         if do_first_instance:
             self.root.after(1, self.first_instance)
+        self.root.protocol('WM_DELETE_WINDOW', self.on_program_exit)
         self.root.mainloop()
 
-        # Program exit
-        if any((self.username.get(), self.address.get(), self.food_items)):
-            for item in self.food_items:
-                item.revert()
-            with open(f'{self.program_dir}/savedata', 'wb') as file:
-                save_data = SaveData(self)
-                pickle.dump(save_data, file)
+    def on_program_exit(self):
+        if any(item.edited for item in self.food_items):
+            self.save_changes()
+            return
+        with open(f'{program_dir}/savedata', 'wb') as file:
+            save_data = SaveData(self)
+            pickle.dump(save_data, file)
         # Do duplicate instance check fist
         shutil.rmtree(instance_dir)
+        self.root.destroy()
 
     def first_instance(self):
         # Ask to input Username and Address
-        print('First Instance Ran')
         self.settings_window(first_instance=True)
 
     def settings_window(self, first_instance=False):
@@ -235,7 +238,6 @@ class LabelMaker:
             self.food_items_dict[new_item.name] = new_item
             self.selected_item = new_item
         self.update_combobox()
-        print('Save Item Function Run')
 
     def delete_item(self):
         if not self.item_name_box.get():
@@ -248,17 +250,45 @@ class LabelMaker:
             self.item_name_box.set('')
             self.ingredients_entry.delete('1.0', END)
             self.update_combobox()
-        print('Delete Item Function Run')
 
     def edit_item_name(self, food_item):
         def window_close():
+            def cancel_edit(*event):
+                if event and event[0].keysym != 'Return':
+                    return
+                error_window.destroy()
+                window.destroy()
+
             if food_item.name != new_item_name.get():
+                if new_item_name.get() in self.food_items_dict:
+                    error_window = Toplevel(window)
+                    error_window.grab_set()
+                    error_window.focus()
+                    error_window.transient(window)
+                    error_window.title('Error')
+                    error_window.geometry('225x100')
+                    error_window.geometry(f'+{window.winfo_rootx()}+{window.winfo_rooty()}')
+                    error_window.resizable(False, False)
+
+                    existing_name_label = tk.Label(error_window, text='Name already exists', font=(default_font, 12))
+                    existing_name_label.place(x=112, y=29, anchor='s')
+
+                    edit_name_button = tk.Button(error_window, text='Cancel Edit', command=cancel_edit)
+                    edit_name_button.bind('<KeyRelease>', cancel_edit)
+                    edit_name_button.focus_set()
+                    edit_name_button.place(x=112, y=31, anchor='n')
+                    return
                 del self.food_items_dict[food_item.name]
                 food_item.name = new_item_name.get()
                 self.food_items_dict[food_item.name] = food_item
                 self.update_combobox_text_only(food_item.name)
                 self.update_combobox()
             window.destroy()
+
+        def key_release(event):
+            if event.keysym == 'Return':
+                window_close()
+
         if not food_item:
             return
 
@@ -275,12 +305,43 @@ class LabelMaker:
         window.resizable(False, False)
         window.protocol('WM_DELETE_WINDOW', window_close)
 
-        username_label = tk.Label(window, text='Item Name:', font=(default_font, 12))
-        username_label.place(x=112, y=29, anchor='s')
-        username_label_entry = tk.Entry(window, textvariable=new_item_name, font=(default_font, 12))
-        username_label_entry.place(x=112, y=31, anchor='n')
+        item_name_label = tk.Label(window, text='Item Name:', font=(default_font, 12))
+        item_name_label.place(x=112, y=29, anchor='s')
+        item_name_entry = tk.Entry(window, textvariable=new_item_name, font=(default_font, 12))
+        item_name_entry.bind('<KeyRelease>', key_release)
+        item_name_entry.place(x=112, y=31, anchor='n')
 
-        print('Edit item name')
+    def save_changes(self):
+        def window_close(do='cancel'):
+            if do == 'cancel':
+                window.destroy()
+                return
+            if do == 'save':
+                for item in self.food_items:
+                    item.save_item()
+            else:
+                for item in self.food_items:
+                    item.revert()
+            self.on_program_exit()
+
+        window = Toplevel(self.root)
+        window.grab_set()
+        window.focus()
+        window.transient(self.root)
+        window.title('Unsaved Changes')
+        window.geometry('240x80')
+        window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
+        window.resizable(False, False)
+        window.protocol('WM_DELETE_WINDOW', window_close)
+
+        item_name_label = tk.Label(window, text='Save unsaved changes?', font=(default_font, 12))
+        item_name_label.place(x=120, y=22, anchor='s')
+
+        save_button = tk.Button(window, text='Save', width=10, command=lambda: window_close(do='save'))
+        save_button.place(x=115, y=32, anchor='ne')
+
+        cancel_button = tk.Button(window, text='Don\'t Save', width=10, command=lambda: window_close(do='dont save'))
+        cancel_button.place(x=125, y=32, anchor='nw')
 
     def textbox_edited(self, event):
         if event.keysym in ['Right', 'Left', 'Up', 'Down']:
@@ -289,7 +350,6 @@ class LabelMaker:
             self.selected_item.edit_item(self.ingredients_entry.get('1.0', END))
             self.update_combobox_text_only(self.selected_item.get_name())
         self.update_combobox()
-        print('Textbox edited')
 
     def combobox_edited(self, *_):
         if not self.item_name_box.get():
@@ -297,7 +357,6 @@ class LabelMaker:
         if self.selected_item:
             self.selected_item = None
             self.ingredients_entry.delete('1.0', END)
-        print('Combobox edited')
 
     def combobox_user_edit(self, event):
         if event.keysym in ['Right', 'Left']:
@@ -310,7 +369,6 @@ class LabelMaker:
             self.ingredients_entry.insert('1.0', item.ingredients)
             self.selected_item = item
             self.update_combobox_text_only(item.get_name())
-        print('User edit')
 
     def dropdown_changed(self, *_):
         if not (item_name := self.item_name_box.get().replace('*', '')):
@@ -327,13 +385,11 @@ class LabelMaker:
             self.ingredients_entry.delete('1.0', END)
             self.ingredients_entry.insert('1.0', item.ingredients)
             self.selected_item = item
-        print('Dropdown Changed:', self.item_name_box.get())
 
     def dropdown_opened(self, *_):
         if not self.selected_item and self.item_name_box.get():
             self.auto_save = True
             self.auto_save_name = self.item_name_box.get()
-        print('Dropdown Opened; Current Contents:', self.item_name_box.get())
 
     def update_combobox(self):
         self.selectable_items = [item.get_name() for item in self.food_items]
