@@ -2,14 +2,14 @@ import os
 import shutil
 import datetime
 import pickle
-import docx
 import tkinter as tk
-from tkinter import NORMAL, DISABLED, END, INSERT
-from tkinter import ttk, filedialog, Toplevel, StringVar, IntVar, Checkbutton, Label, Menu
+from tkinter import ttk, Toplevel, StringVar, Label, Menu, END
+from docx import Document
+from docx.shared import Inches, Pt
 
 version = '1.0'
 
-default_font = 'Arial'
+program_font = 'Arial'
 
 program_dir = f'{os.getenv("APPDATA")}/LabelMaker'
 instance_dir = f'{program_dir}/instance'
@@ -44,10 +44,8 @@ class FoodItem:
         self.edited = False
 
     def edit_item(self, ingredients: str):
-        self.edited = True
         self.ingredients = ingredients.replace('\n', '')
-        if self.ingredients == self.saved_ingredients:
-            self.edited = False
+        self.edited = (self.ingredients != self.saved_ingredients)
 
     def revert(self):
         self.edited = False
@@ -69,10 +67,11 @@ class LabelMaker:
         self.food_items_dict = {}
         self.selectable_items = []
         self.selected_item = None
+        self.label_size = (4, 1)
+        self.item_labels = {}
         self.auto_save = False
         self.auto_save_name = ''
-        self.label_sizes = [(4, 1)]
-        self.cur_date = datetime.datetime.now().strftime('%m-%d-%Y')
+        self.date_stamp = datetime.datetime.now().strftime('%m-%d-%Y')
         self.counter = 0
 
         # File management
@@ -80,20 +79,19 @@ class LabelMaker:
         if not os.path.isdir(program_dir):
             os.mkdir(program_dir)
             do_first_instance = True
-        else:
+        elif os.path.isfile(file_path := f'{program_dir}/savedata'):
             # Load saved information
-            if os.path.isfile(file_path := f'{program_dir}/savedata'):
-                with open(file_path, 'rb') as file:
-                    save_data = pickle.load(file)
-                if type(save_data) is not SaveData:
-                    raise TypeError
-                self.username.set(save_data.username_str)
-                self.address.set(save_data.address_str)
-                self.food_items = save_data.food_items
-                self.food_items_dict = {item.name: item for item in self.food_items}
-                self.selectable_items = [item.get_name() for item in self.food_items]
-            else:
-                do_first_instance = True
+            with open(file_path, 'rb') as file:
+                save_data = pickle.load(file)
+            if type(save_data) is not SaveData:
+                raise TypeError
+            self.username.set(save_data.username_str)
+            self.address.set(save_data.address_str)
+            self.food_items = save_data.food_items
+            self.food_items_dict = {item.name: item for item in self.food_items}
+            self.selectable_items = [item.get_name() for item in self.food_items]
+        else:
+            do_first_instance = True
 
         # Check for running instance
         if not os.path.isdir(instance_dir):
@@ -110,10 +108,10 @@ class LabelMaker:
         self.root.config(menu=self.menu)
 
         # Program UI
-        self.edit_item_label = tk.Label(self.root, text='Edit Food Item', font=(default_font, 15))
+        self.edit_item_label = tk.Label(self.root, text='Edit Food Item', font=(program_font, 15))
         self.edit_item_label.place(x=120, y=5, anchor='n')
 
-        self.item_name_label = tk.Label(self.root, text='Food Item:', font=(default_font, 12))
+        self.item_name_label = tk.Label(self.root, text='Food Item:', font=(program_font, 12))
         self.item_name_label.place(x=10, y=50, anchor='w')
         self.item_name = StringVar()
         self.item_name_box = ttk.Combobox(values=self.selectable_items, postcommand=self.dropdown_opened,
@@ -127,9 +125,9 @@ class LabelMaker:
                                           command=lambda: self.edit_item_name(food_item=self.selected_item))
         self.edit_name_button.place(x=240, y=50, anchor='w')
 
-        self.ingredients_label = tk.Label(self.root, text='Ingredients:', font=(default_font, 12))
+        self.ingredients_label = tk.Label(self.root, text='Ingredients:', font=(program_font, 12))
         self.ingredients_label.place(x=10, y=78, anchor='w')
-        self.ingredients_entry = tk.Text(self.root,  width=30, height=9, font=(default_font, 12))
+        self.ingredients_entry = tk.Text(self.root, width=30, height=9, font=(program_font, 12))
         self.ingredients_entry.bind('<KeyRelease>', self.textbox_edited)
         self.ingredients_entry.place(x=10, y=90, anchor='nw')
 
@@ -207,14 +205,14 @@ class LabelMaker:
         window.resizable(False, False)
         window.protocol('WM_DELETE_WINDOW', window_close)
 
-        username_label = tk.Label(window, text='Name:', font=(default_font, 12))
+        username_label = tk.Label(window, text='Name:', font=(program_font, 12))
         username_label.place(x=80, y=15, anchor='e')
-        username_label_entry = tk.Entry(window, textvariable=self.username, font=(default_font, 12))
+        username_label_entry = tk.Entry(window, textvariable=self.username, font=(program_font, 12))
         username_label_entry.place(x=82, y=17, anchor='w')
 
-        address_label = tk.Label(window, text='Address:', font=(default_font, 12))
+        address_label = tk.Label(window, text='Address:', font=(program_font, 12))
         address_label.place(x=80, y=45, anchor='e')
-        address_label_entry = tk.Entry(window, textvariable=self.address, font=(default_font, 12))
+        address_label_entry = tk.Entry(window, textvariable=self.address, font=(program_font, 12))
         address_label_entry.place(x=82, y=47, anchor='w')
 
         if first_instance:
@@ -270,7 +268,7 @@ class LabelMaker:
                     error_window.geometry(f'+{window.winfo_rootx()}+{window.winfo_rooty()}')
                     error_window.resizable(False, False)
 
-                    existing_name_label = tk.Label(error_window, text='Name already exists', font=(default_font, 12))
+                    existing_name_label = tk.Label(error_window, text='Name already exists', font=(program_font, 12))
                     existing_name_label.place(x=112, y=29, anchor='s')
 
                     edit_name_button = tk.Button(error_window, text='Cancel Edit', command=cancel_edit)
@@ -305,9 +303,9 @@ class LabelMaker:
         window.resizable(False, False)
         window.protocol('WM_DELETE_WINDOW', window_close)
 
-        item_name_label = tk.Label(window, text='Item Name:', font=(default_font, 12))
+        item_name_label = tk.Label(window, text='Item Name:', font=(program_font, 12))
         item_name_label.place(x=112, y=29, anchor='s')
-        item_name_entry = tk.Entry(window, textvariable=new_item_name, font=(default_font, 12))
+        item_name_entry = tk.Entry(window, textvariable=new_item_name, font=(program_font, 12))
         item_name_entry.bind('<KeyRelease>', key_release)
         item_name_entry.place(x=112, y=31, anchor='n')
 
@@ -334,7 +332,7 @@ class LabelMaker:
         window.resizable(False, False)
         window.protocol('WM_DELETE_WINDOW', window_close)
 
-        item_name_label = tk.Label(window, text='Save unsaved changes?', font=(default_font, 12))
+        item_name_label = tk.Label(window, text='Save unsaved changes?', font=(program_font, 12))
         item_name_label.place(x=120, y=22, anchor='s')
 
         save_button = tk.Button(window, text='Save', width=10, command=lambda: window_close(do='save'))
@@ -401,6 +399,29 @@ class LabelMaker:
         self.item_name.set(value)
         self.ingredients_entry.insert('1.0', textbox_contents)
         self.selected_item = selected_item
+
+    def create_labels(self):
+        document = Document()
+        document.styles['Normal'].paragraph_format.space_before = Pt(0)
+        document.styles['Normal'].paragraph_format.space_after = Pt(0)
+        document.styles['Normal'].font.name = 'Arial'
+        for section in document.sections:
+            section.page_width = Inches(self.label_size[0])
+            section.page_height = Inches(self.label_size[1])
+            margin_size = Inches(1/16)
+            section.top_margin = margin_size
+            section.bottom_margin = margin_size
+            section.left_margin = margin_size
+            section.right_margin = margin_size
+
+        page_title = document.add_paragraph('Test Name')
+        page_title.add_run(f' ({self.date_stamp})').bold = True
+        document.add_paragraph().add_run('Test Text').font.size = Pt(10)
+        document.add_page_break()
+        document.add_paragraph().add_run('Test Name 2').bold = True
+        document.add_paragraph().add_run('Test Text 2').font.size = Pt(10)
+
+        document.save('test.docx')
 
 
 if __name__ == '__main__':
