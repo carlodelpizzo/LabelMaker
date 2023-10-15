@@ -3,7 +3,7 @@ import shutil
 import datetime
 import pickle
 import tkinter as tk
-from tkinter import ttk, Toplevel, StringVar, Label, Menu, END
+from tkinter import ttk, Toplevel, StringVar, Label, Menu, END, DISABLED, NORMAL
 from docx import Document
 from docx.shared import Inches, Pt
 
@@ -40,7 +40,8 @@ class FoodItem:
         return f'*{self.name}' if self.edited else self.name
 
     def save_item(self):
-        self.saved_ingredients = str(self.ingredients).replace('\n', '')
+        self.ingredients = self.ingredients.replace('\n', '')
+        self.saved_ingredients = str(self.ingredients)
         self.edited = False
 
     def edit_item(self, ingredients: str):
@@ -56,7 +57,7 @@ class LabelMaker:
     def __init__(self):
         # Window Properties
         self.root = tk.Tk()
-        self.root.geometry('800x420')
+        self.root.geometry('670x310')
         self.root.title('Label Maker')
         self.root.resizable(False, False)
 
@@ -68,7 +69,7 @@ class LabelMaker:
         self.selectable_items = []
         self.selected_item = None
         self.label_size = (4, 1)
-        self.item_labels = {}
+        self.labels_to_print = {}
         self.auto_save = False
         self.auto_save_name = ''
         self.date_stamp = datetime.datetime.now().strftime('%m-%d-%Y')
@@ -109,7 +110,7 @@ class LabelMaker:
 
         # Program UI
         self.edit_item_label = tk.Label(self.root, text='Edit Food Item', font=(program_font, 15))
-        self.edit_item_label.place(x=120, y=5, anchor='n')
+        self.edit_item_label.place(x=147, y=2, anchor='n')
 
         self.item_name_label = tk.Label(self.root, text='Food Item:', font=(program_font, 12))
         self.item_name_label.place(x=10, y=50, anchor='w')
@@ -132,10 +133,39 @@ class LabelMaker:
         self.ingredients_entry.place(x=10, y=90, anchor='nw')
 
         self.save_item_button = tk.Button(self.root, text='Save Item', width=10, command=self.save_item)
-        self.save_item_button.place(x=120, y=260, anchor='ne')
+        self.save_item_button.place(x=146, y=260, anchor='ne')
 
         self.delete_item_button = tk.Button(self.root, text='Delete Item', width=10, command=self.delete_item)
-        self.delete_item_button.place(x=122, y=260, anchor='nw')
+        self.delete_item_button.place(x=148, y=260, anchor='nw')
+
+        self.separator = ttk.Separator(self.root, orient='vertical')
+        self.separator.place(x=295, y=0, relwidth=0.2, relheight=1)
+
+        self.selected_label = tk.Label(self.root, text='Labels to print:', font=(program_font, 15))
+        self.selected_label.place(x=480, y=2, anchor='n')
+
+        self.selected_item_name = StringVar()
+        self.selected_label = tk.Label(self.root, textvariable=self.selected_item_name, font=(program_font, 18))
+        self.selected_label.place(x=495, y=52, anchor='e')
+
+        self.spinbox = tk.Spinbox(self.root, from_=0, to=99, width=3)
+        self.spinbox.place(x=505, y=52, anchor='w')
+        self.spinbox.delete(0, END)
+        self.spinbox.insert(0, '1')
+        self.spinbox['state'] = 'readonly'
+
+        self.add_item_button = tk.Button(self.root, text='Add', width=3, command=self.add_item)
+        self.add_item_button.place(x=540, y=52, anchor='w')
+
+        self.items_to_print_label = tk.Label(self.root, text='Labels to print:', font=(program_font, 12))
+        self.items_to_print_label.place(x=393, y=95, anchor='s')
+        self.items_to_print_entry = tk.Text(self.root, width=30, height=9, font=(program_font, 12))
+        self.items_to_print_entry.place(x=480, y=96, anchor='n')
+        self.items_to_print_entry['state'] = DISABLED
+
+        self.create_labels_button = tk.Button(self.root, text='Create Labels', width=10,
+                                              command=self.create_labels)
+        self.create_labels_button.place(x=480, y=270, anchor='n')
 
         # Version Label
         self.version_label = Label(self.root, text=version)
@@ -229,22 +259,25 @@ class LabelMaker:
             self.selected_item.save_item()
             self.update_combobox_text_only(self.selected_item.get_name())
             self.ingredients_entry.delete('1.0', END)
-            self.ingredients_entry.insert('1.0', self.selected_item.ingredients)
+            self.ingredients_entry.insert('1.0', self.selected_item.ingredients.replace('\n', ''))
         else:
             new_item = FoodItem(self.item_name_box.get(), self.ingredients_entry.get('1.0', END))
             self.food_items.append(new_item)
             self.food_items_dict[new_item.name] = new_item
-            self.selected_item = new_item
+            self.change_selected_item(new_item)
         self.update_combobox()
 
     def delete_item(self):
         if not self.item_name_box.get():
             return
         if self.selected_item:
+            if self.selected_item in self.labels_to_print:
+                del self.labels_to_print[self.selected_item]
+                self.update_items_to_print_entry()
             self.selectable_items.pop(self.selectable_items.index(self.selected_item.get_name()))
             self.food_items.pop(self.food_items.index(self.selected_item))
             del self.food_items_dict[self.selected_item.name]
-            self.selected_item = None
+            self.change_selected_item(None)
             self.item_name_box.set('')
             self.ingredients_entry.delete('1.0', END)
             self.update_combobox()
@@ -281,6 +314,7 @@ class LabelMaker:
                 self.food_items_dict[food_item.name] = food_item
                 self.update_combobox_text_only(food_item.name)
                 self.update_combobox()
+                self.update_items_to_print_entry()
             window.destroy()
 
         def key_release(event):
@@ -344,6 +378,12 @@ class LabelMaker:
     def textbox_edited(self, event):
         if event.keysym in ['Right', 'Left', 'Up', 'Down']:
             return
+        if event.keysym == 'Return':
+            self.save_item()
+            textbox_contents = self.ingredients_entry.get('1.0', END).replace('\n', '')
+            self.ingredients_entry.delete('1.0', END)
+            self.ingredients_entry.insert('1.0', textbox_contents)
+            return
         if self.selected_item:
             self.selected_item.edit_item(self.ingredients_entry.get('1.0', END))
             self.update_combobox_text_only(self.selected_item.get_name())
@@ -353,7 +393,7 @@ class LabelMaker:
         if not self.item_name_box.get():
             return
         if self.selected_item:
-            self.selected_item = None
+            self.change_selected_item(None)
             self.ingredients_entry.delete('1.0', END)
 
     def combobox_user_edit(self, event):
@@ -364,8 +404,8 @@ class LabelMaker:
         self.update_combobox_text_only(value)
         if item := self.food_items_dict.get(value):
             self.ingredients_entry.delete('1.0', END)
-            self.ingredients_entry.insert('1.0', item.ingredients)
-            self.selected_item = item
+            self.ingredients_entry.insert('1.0', item.ingredients.replace('\n', ''))
+            self.change_selected_item(item)
             self.update_combobox_text_only(item.get_name())
 
     def dropdown_changed(self, *_):
@@ -381,8 +421,8 @@ class LabelMaker:
         self.auto_save = False
         if item := self.food_items_dict.get(item_name):
             self.ingredients_entry.delete('1.0', END)
-            self.ingredients_entry.insert('1.0', item.ingredients)
-            self.selected_item = item
+            self.ingredients_entry.insert('1.0', item.ingredients.replace('\n', ''))
+            self.change_selected_item(item)
 
     def dropdown_opened(self, *_):
         if not self.selected_item and self.item_name_box.get():
@@ -397,10 +437,35 @@ class LabelMaker:
         selected_item = self.selected_item
         textbox_contents = self.ingredients_entry.get('1.0', END).replace('\n', '')
         self.item_name.set(value)
+        self.ingredients_entry.delete('1.0', END)
         self.ingredients_entry.insert('1.0', textbox_contents)
-        self.selected_item = selected_item
+        self.change_selected_item(selected_item)
+
+    def add_item(self):
+        if not self.selected_item:
+            return
+        if self.spinbox.get() == '0' and self.labels_to_print.get(self.selected_item):
+            del self.labels_to_print[self.selected_item]
+        elif self.spinbox.get() == '0':
+            return
+        else:
+            self.labels_to_print[self.selected_item] = self.spinbox.get()
+        self.update_items_to_print_entry()
+
+    def update_items_to_print_entry(self):
+        labels_to_print = []
+        for item in self.labels_to_print:
+            labels_to_print.append(f'{item.name} ({self.labels_to_print[item]})')
+            labels_to_print.append('\n')
+        labels_to_print = ''.join(labels_to_print[:-1])
+        self.items_to_print_entry['state'] = NORMAL
+        self.items_to_print_entry.delete('1.0', END)
+        self.items_to_print_entry.insert('1.0', labels_to_print)
+        self.items_to_print_entry['state'] = DISABLED
 
     def create_labels(self):
+        if not self.labels_to_print:
+            return
         document = Document()
         document.styles['Normal'].paragraph_format.space_before = Pt(0)
         document.styles['Normal'].paragraph_format.space_after = Pt(0)
@@ -422,6 +487,21 @@ class LabelMaker:
         document.add_paragraph().add_run('Test Text 2').font.size = Pt(10)
 
         document.save('test.docx')
+
+    def change_selected_item(self, item):
+        if not item:
+            item_name = ''
+        else:
+            item_name = item.name
+        self.selected_item = item
+        self.selected_item_name.set(item_name)
+        spinbox_text = '1'
+        if self.selected_item in self.labels_to_print:
+            spinbox_text = self.labels_to_print[self.selected_item]
+        self.spinbox['state'] = NORMAL
+        self.spinbox.delete(0, END)
+        self.spinbox.insert(0, spinbox_text)
+        self.spinbox['state'] = 'readonly'
 
 
 if __name__ == '__main__':
