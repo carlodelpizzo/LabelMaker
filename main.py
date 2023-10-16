@@ -74,6 +74,7 @@ class LabelMaker:
         self.auto_save = False
         self.auto_save_name = ''
         self.date_stamp = datetime.datetime.now().strftime('%m-%d-%Y')
+        self.save_path = f'{os.path.join(os.environ["USERPROFILE"])}/Desktop'
         self.counter = 0
 
         # File management
@@ -501,8 +502,13 @@ class LabelMaker:
                 ingredients.font.size = Pt(10)
                 para2.add_run(item.ingredients.replace('\n', '')).font.size = Pt(8)
                 para3 = document.add_paragraph()
-                date = para3.add_run(f'Date: {self.date_stamp}        Wt.')
+                date = para3.add_run('Date: ')
+                date_stamp = para3.add_run(self.date_stamp)
+                weight_spacing = ''.join([' ' for _ in range(40)])
+                para3.add_run(f'{weight_spacing}Weight:').font.size = Pt(8)
                 date.font.size = Pt(8)
+                date_stamp.font.size = Pt(8)
+                date_stamp.bold = True
                 if i == len(self.labels_to_print) - 1 and j == limit - 1:
                     continue
                 date.add_break(WD_BREAK.PAGE)
@@ -512,12 +518,14 @@ class LabelMaker:
     def save_labels(self):
         if not self.labels_to_print:
             return
-        out_file = filedialog.asksaveasfile(initialfile='test.docx', filetypes=[('Word Document', '*.docx')])
+        out_file = filedialog.asksaveasfile(initialdir=self.save_path, initialfile=f'Labels {self.date_stamp}.docx',
+                                            filetypes=[('Word Document', '*.docx')])
         if not out_file:
             return
         if not (out_file_path := out_file.name).endswith('.docx'):
             out_file.close()
             os.rename(out_file_path, (out_file_path := f'{out_file_path}.docx'))
+        self.save_path = os.path.dirname(out_file_path)
         document = self.create_labels()
         document.save(out_file_path)
 
