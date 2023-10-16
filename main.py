@@ -3,9 +3,10 @@ import shutil
 import datetime
 import pickle
 import tkinter as tk
-from tkinter import ttk, Toplevel, StringVar, Label, Menu, END, DISABLED, NORMAL
+from tkinter import ttk, filedialog, Toplevel, StringVar, Label, Menu, END, DISABLED, NORMAL
 from docx import Document
 from docx.shared import Inches, Pt
+from docx.enum.text import WD_TAB_ALIGNMENT, WD_BREAK
 
 version = '1.0'
 
@@ -163,8 +164,7 @@ class LabelMaker:
         self.items_to_print_entry.place(x=480, y=96, anchor='n')
         self.items_to_print_entry['state'] = DISABLED
 
-        self.create_labels_button = tk.Button(self.root, text='Create Labels', width=10,
-                                              command=self.create_labels)
+        self.create_labels_button = tk.Button(self.root, text='Create Labels', width=10, command=self.save_labels)
         self.create_labels_button.place(x=480, y=270, anchor='n')
 
         # Version Label
@@ -466,7 +466,9 @@ class LabelMaker:
 
     def create_labels(self):
         if not self.labels_to_print:
-            return
+            return None
+
+        # Format Document
         document = Document()
         document.styles['Normal'].paragraph_format.space_before = Pt(0)
         document.styles['Normal'].paragraph_format.space_after = Pt(0)
@@ -480,14 +482,44 @@ class LabelMaker:
             section.left_margin = margin_size
             section.right_margin = margin_size
 
-        page_title = document.add_paragraph('Test Name')
-        page_title.add_run(f' ({self.date_stamp})').bold = True
-        document.add_paragraph().add_run('Test Text').font.size = Pt(10)
-        document.add_page_break()
-        document.add_paragraph().add_run('Test Name 2').bold = True
-        document.add_paragraph().add_run('Test Text 2').font.size = Pt(10)
+        # Create document contents
+        for i, item in enumerate(self.labels_to_print):
+            for j in range(limit := int(self.labels_to_print[item])):
+                para1 = document.add_paragraph()
+                item_name = para1.add_run(f'{item.name}')
+                item_name.bold = True
+                item_name.font.size = Pt(14)
+                para1.add_run(f'\t{self.username.get()} - {self.address.get()}').font.size = Pt(10)
+                margin_end = Inches((sec := document.sections[0]).page_width.inches -
+                                    (sec.left_margin.inches + sec.right_margin.inches))
+                tab_stops = para1.paragraph_format.tab_stops
+                tab_stops.add_tab_stop(margin_end, WD_TAB_ALIGNMENT.RIGHT)
 
-        document.save('test.docx')
+                para2 = document.add_paragraph()
+                ingredients = para2.add_run('Ingredients: ')
+                ingredients.bold = True
+                ingredients.font.size = Pt(10)
+                para2.add_run(item.ingredients.replace('\n', '')).font.size = Pt(8)
+                para3 = document.add_paragraph()
+                date = para3.add_run(f'Date: {self.date_stamp}        Wt.')
+                date.font.size = Pt(8)
+                if i == len(self.labels_to_print) - 1 and j == limit - 1:
+                    continue
+                date.add_break(WD_BREAK.PAGE)
+
+        return document
+
+    def save_labels(self):
+        if not self.labels_to_print:
+            return
+        out_file = filedialog.asksaveasfile(initialfile='test.docx', filetypes=[('Word Document', '*.docx')])
+        if not out_file:
+            return
+        if not (out_file_path := out_file.name).endswith('.docx'):
+            out_file.close()
+            os.rename(out_file_path, (out_file_path := f'{out_file_path}.docx'))
+        document = self.create_labels()
+        document.save(out_file_path)
 
     def change_selected_item(self, item=None):
         item_name = item.name if item else ''
