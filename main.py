@@ -19,7 +19,7 @@ letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
 capital_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
                    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-valid_chars = ['_', '-', ' ', *letters, *capital_letters, *numbers]
+valid_chars = ['(', ')', '_', '-', ' ', *letters, *capital_letters, *numbers]
 
 
 class SaveData:
@@ -255,6 +255,8 @@ class LabelMaker:
         self.root.after(150, self.instance_check)
 
     def save_item(self):
+        if not self.item_name_box.get():
+            return
         if self.selected_item:
             self.selected_item.save_item()
             self.update_combobox_text_only(self.selected_item.get_name())
@@ -277,7 +279,7 @@ class LabelMaker:
             self.selectable_items.pop(self.selectable_items.index(self.selected_item.get_name()))
             self.food_items.pop(self.food_items.index(self.selected_item))
             del self.food_items_dict[self.selected_item.name]
-            self.change_selected_item(None)
+            self.change_selected_item()
             self.item_name_box.set('')
             self.ingredients_entry.delete('1.0', END)
             self.update_combobox()
@@ -393,14 +395,14 @@ class LabelMaker:
         if not self.item_name_box.get():
             return
         if self.selected_item:
-            self.change_selected_item(None)
+            self.change_selected_item()
             self.ingredients_entry.delete('1.0', END)
 
     def combobox_user_edit(self, event):
         if event.keysym in ['Right', 'Left']:
             return
         value = [char for char in self.item_name_box.get() if char in valid_chars]
-        value = ''.join(value)
+        value = ''.join(value).lstrip()
         self.update_combobox_text_only(value)
         if item := self.food_items_dict.get(value):
             self.ingredients_entry.delete('1.0', END)
@@ -455,8 +457,7 @@ class LabelMaker:
     def update_items_to_print_entry(self):
         labels_to_print = []
         for item in self.labels_to_print:
-            labels_to_print.append(f'{item.name} ({self.labels_to_print[item]})')
-            labels_to_print.append('\n')
+            labels_to_print.extend([f'{item.name} ({self.labels_to_print[item]})', '\n'])
         labels_to_print = ''.join(labels_to_print[:-1])
         self.items_to_print_entry['state'] = NORMAL
         self.items_to_print_entry.delete('1.0', END)
@@ -488,11 +489,8 @@ class LabelMaker:
 
         document.save('test.docx')
 
-    def change_selected_item(self, item):
-        if not item:
-            item_name = ''
-        else:
-            item_name = item.name
+    def change_selected_item(self, item=None):
+        item_name = item.name if item else ''
         self.selected_item = item
         self.selected_item_name.set(item_name)
         spinbox_text = '1'
