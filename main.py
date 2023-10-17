@@ -56,6 +56,9 @@ class FoodItem:
 
 class LabelMaker:
     def __init__(self):
+        if os.path.isdir(instance_dir):
+            return
+
         # Window Properties
         self.root = tk.Tk()
         self.root.geometry('670x310')
@@ -78,10 +81,10 @@ class LabelMaker:
         self.counter = 0
 
         # File management
-        do_first_instance = False
+        first_run = False
         if not os.path.isdir(program_dir):
             os.mkdir(program_dir)
-            do_first_instance = True
+            first_run = True
         elif os.path.isfile(file_path := f'{program_dir}/savedata'):
             # Load saved information
             with open(file_path, 'rb') as file:
@@ -94,7 +97,7 @@ class LabelMaker:
             self.food_items_dict = {item.name: item for item in self.food_items}
             self.selectable_items = [item.get_name() for item in self.food_items]
         else:
-            do_first_instance = True
+            first_run = True
 
         # Check for running instance
         if not os.path.isdir(instance_dir):
@@ -174,8 +177,8 @@ class LabelMaker:
 
         # Mainloop
         self.root.after(0, self.instance_check)
-        if do_first_instance:
-            self.root.after(1, self.first_instance)
+        if first_run:
+            self.root.after(1, self.on_first_run)
         self.root.protocol('WM_DELETE_WINDOW', self.on_program_exit)
         self.root.mainloop()
 
@@ -186,15 +189,15 @@ class LabelMaker:
         with open(f'{program_dir}/savedata', 'wb') as file:
             save_data = SaveData(self)
             pickle.dump(save_data, file)
-        # Do duplicate instance check fist
-        shutil.rmtree(instance_dir)
+        if os.path.isdir(instance_dir):
+            shutil.rmtree(instance_dir)
         self.root.destroy()
 
-    def first_instance(self):
+    def on_first_run(self):
         # Ask to input Username and Address
-        self.settings_window(first_instance=True)
+        self.settings_window(first_run=True)
 
-    def settings_window(self, first_instance=False):
+    def settings_window(self, first_run=False):
         def blink_entry(entry_to_blink=None):
             if not self.counter:
                 return
@@ -246,7 +249,7 @@ class LabelMaker:
         address_label_entry = tk.Entry(window, textvariable=self.address, font=(program_font, 12))
         address_label_entry.place(x=82, y=47, anchor='w')
 
-        if first_instance:
+        if first_run:
             window.title('Enter User Information')
             window.grab_set()
             window.focus()
