@@ -271,19 +271,41 @@ class LabelMaker:
         self.update_combobox()
 
     def delete_item(self):
+        def window_close(delete=False):
+            if delete and self.selected_item:
+                if self.selected_item in self.labels_to_print:
+                    del self.labels_to_print[self.selected_item]
+                    self.update_items_to_print_entry()
+                self.selectable_items.pop(self.selectable_items.index(self.selected_item.get_name()))
+                self.food_items.pop(self.food_items.index(self.selected_item))
+                del self.food_items_dict[self.selected_item.name]
+                self.change_selected_item()
+                self.item_name_box.set('')
+                self.ingredients_entry.delete('1.0', END)
+                self.update_combobox()
+            del_window.destroy()
+
         if not self.item_name_box.get():
             return
-        if self.selected_item:
-            if self.selected_item in self.labels_to_print:
-                del self.labels_to_print[self.selected_item]
-                self.update_items_to_print_entry()
-            self.selectable_items.pop(self.selectable_items.index(self.selected_item.get_name()))
-            self.food_items.pop(self.food_items.index(self.selected_item))
-            del self.food_items_dict[self.selected_item.name]
-            self.change_selected_item()
-            self.item_name_box.set('')
-            self.ingredients_entry.delete('1.0', END)
-            self.update_combobox()
+
+        del_window = Toplevel(self.root)
+        del_window.grab_set()
+        del_window.focus()
+        del_window.transient(self.root)
+        del_window.title('Confirm Delete')
+        del_window.geometry('240x80')
+        del_window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
+        del_window.resizable(False, False)
+        del_window.protocol('WM_DELETE_WINDOW', window_close)
+
+        item_name_label = tk.Label(del_window, text='Delete Item?', font=(program_font, 12))
+        item_name_label.place(x=120, y=22, anchor='s')
+
+        save_button = tk.Button(del_window, text='Delete', width=10, command=lambda: window_close(delete=True))
+        save_button.place(x=115, y=32, anchor='ne')
+
+        cancel_button = tk.Button(del_window, text='Don\'t Delete', width=10, command=window_close)
+        cancel_button.place(x=125, y=32, anchor='nw')
 
     def edit_item_name(self, food_item):
         def window_close():
@@ -504,7 +526,7 @@ class LabelMaker:
                 para3 = document.add_paragraph()
                 date = para3.add_run('Date: ')
                 date.font.size = Pt(8)
-                date_stamp = para3.add_run(self.date_stamp)
+                date_stamp = para3.add_run('')  # Automated date stamp goes here
                 date_stamp.font.size = Pt(8)
                 date_stamp.bold = True
                 weight_spacing = ''.join([' ' for _ in range(40)])
