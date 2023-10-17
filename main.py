@@ -489,7 +489,7 @@ class LabelMaker:
                 para1 = document.add_paragraph()
                 item_name = para1.add_run(f'{item.name}')
                 item_name.bold = True
-                item_name.font.size = Pt(14)
+                item_name.font.size = Pt(11)
                 para1.add_run(f'\t{self.username.get()} - {self.address.get()}').font.size = Pt(10)
                 margin_end = Inches((sec := document.sections[0]).page_width.inches -
                                     (sec.left_margin.inches + sec.right_margin.inches))
@@ -499,19 +499,20 @@ class LabelMaker:
                 para2 = document.add_paragraph()
                 ingredients = para2.add_run('Ingredients: ')
                 ingredients.bold = True
-                ingredients.font.size = Pt(10)
+                ingredients.font.size = Pt(9)
                 para2.add_run(item.ingredients.replace('\n', '')).font.size = Pt(8)
                 para3 = document.add_paragraph()
                 date = para3.add_run('Date: ')
-                date_stamp = para3.add_run(self.date_stamp)
-                weight_spacing = ''.join([' ' for _ in range(40)])
-                para3.add_run(f'{weight_spacing}Weight:').font.size = Pt(8)
                 date.font.size = Pt(8)
+                date_stamp = para3.add_run(self.date_stamp)
                 date_stamp.font.size = Pt(8)
                 date_stamp.bold = True
+                weight_spacing = ''.join([' ' for _ in range(40)])
+                weight = para3.add_run(f'{weight_spacing}Weight:')
+                weight.font.size = Pt(8)
                 if i == len(self.labels_to_print) - 1 and j == limit - 1:
                     continue
-                date.add_break(WD_BREAK.PAGE)
+                weight.add_break(WD_BREAK.PAGE)
 
         return document
 
