@@ -1,5 +1,4 @@
 import os
-import shutil
 import datetime
 import pickle
 import tkinter as tk
