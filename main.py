@@ -1,7 +1,9 @@
 import os
+import random
 import shutil
 import datetime
 import pickle
+import time
 import tkinter as tk
 from tkinter import ttk, filedialog, Toplevel, StringVar, Label, Menu, END, DISABLED, NORMAL
 from docx import Document
@@ -56,8 +58,13 @@ class FoodItem:
 
 class LabelMaker:
     def __init__(self):
+        # Check for running instance
         if os.path.isdir(instance_dir):
-            return
+            if not self.instance_check(wait=True):
+                return
+            else:
+                shutil.rmtree(instance_dir)
+        os.mkdir(instance_dir)
 
         # Window Properties
         self.root = tk.Tk()
@@ -79,6 +86,7 @@ class LabelMaker:
         self.date_stamp = datetime.datetime.now().strftime('%m-%d-%Y')
         self.save_path = f'{os.path.join(os.environ["USERPROFILE"])}/Desktop'
         self.counter = 0
+        self.ran_id = ''.join([str(random.randint(0, 9)) for _ in range(69)])
 
         # File management
         first_run = False
@@ -98,13 +106,6 @@ class LabelMaker:
             self.selectable_items = [item.get_name() for item in self.food_items]
         else:
             first_run = True
-
-        # Check for running instance
-        if not os.path.isdir(instance_dir):
-            os.mkdir(instance_dir)
-        else:
-            # Duplicate instance check
-            print('no code for duplicate instance check')
 
         # Window Menu
         self.menu = Menu(self.root)
@@ -255,8 +256,18 @@ class LabelMaker:
             window.focus()
             window.transient(self.root)
 
-    def instance_check(self):
+    def instance_check(self, wait=False):
+        if wait:
+            if not os.path.isdir(f'{instance_dir}/check_in'):
+                os.mkdir(f'{instance_dir}/check_in')
+            time.sleep(3)
+            if os.path.isdir(f'{instance_dir}/check_in') and os.listdir(f'{instance_dir}/check_in'):
+                shutil.rmtree(f'{instance_dir}/check_in')
+                return False
+            return True
         self.root.after(150, self.instance_check)
+        if os.path.isdir(f'{instance_dir}/check_in') and not os.path.isdir(f'{instance_dir}/check_in/{self.ran_id}'):
+            os.mkdir(f'{instance_dir}/check_in/{self.ran_id}')
 
     def save_item(self):
         if not self.item_name_box.get():
