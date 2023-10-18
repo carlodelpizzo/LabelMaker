@@ -1,10 +1,9 @@
 import os
-import random
 import shutil
 import datetime
 import pickle
-import time
 import tkinter as tk
+import psutil
 from tkinter import ttk, filedialog, Toplevel, StringVar, Label, Menu, END, DISABLED, NORMAL
 from docx import Document
 from docx.shared import Inches, Pt
@@ -59,12 +58,9 @@ class FoodItem:
 class LabelMaker:
     def __init__(self):
         # Check for running instance
-        if os.path.isdir(instance_dir):
-            if not self.instance_check(wait=True):
-                return
-            else:
-                shutil.rmtree(instance_dir)
-        os.mkdir(instance_dir)
+        running_processes = [process.name() for process in psutil.process_iter()]
+        if running_processes.count('LabelMaker.exe') > 2:
+            return
 
         # Window Properties
         self.root = tk.Tk()
@@ -86,7 +82,6 @@ class LabelMaker:
         self.date_stamp = datetime.datetime.now().strftime('%m-%d-%Y')
         self.save_path = f'{os.path.join(os.environ["USERPROFILE"])}/Desktop'
         self.counter = 0
-        self.ran_id = ''.join([str(random.randint(0, 9)) for _ in range(69)])
 
         # File management
         first_run = False
@@ -177,7 +172,6 @@ class LabelMaker:
         self.version_label.place(relx=1, rely=1.01, anchor='se')
 
         # Mainloop
-        self.root.after(0, self.instance_check)
         if first_run:
             self.root.after(1, self.on_first_run)
         self.root.protocol('WM_DELETE_WINDOW', self.on_program_exit)
@@ -190,8 +184,6 @@ class LabelMaker:
         with open(f'{program_dir}/savedata', 'wb') as file:
             save_data = SaveData(self)
             pickle.dump(save_data, file)
-        if os.path.isdir(instance_dir):
-            shutil.rmtree(instance_dir)
         self.root.destroy()
 
     def on_first_run(self):
@@ -255,19 +247,6 @@ class LabelMaker:
             window.grab_set()
             window.focus()
             window.transient(self.root)
-
-    def instance_check(self, wait=False):
-        if wait:
-            if not os.path.isdir(f'{instance_dir}/check_in'):
-                os.mkdir(f'{instance_dir}/check_in')
-            time.sleep(3)
-            if os.path.isdir(f'{instance_dir}/check_in') and os.listdir(f'{instance_dir}/check_in'):
-                shutil.rmtree(f'{instance_dir}/check_in')
-                return False
-            return True
-        self.root.after(150, self.instance_check)
-        if os.path.isdir(f'{instance_dir}/check_in') and not os.path.isdir(f'{instance_dir}/check_in/{self.ran_id}'):
-            os.mkdir(f'{instance_dir}/check_in/{self.ran_id}')
 
     def save_item(self):
         if not self.item_name_box.get():

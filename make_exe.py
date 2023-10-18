@@ -23,9 +23,9 @@ def make_exe(python_file: str):
     PyInstaller.__main__.run([python_file, '--onefile', '-w'])
     # Move and Rename
     if os.path.isfile(f'{cur_dir}dist/{python_file_name}.exe'):
-        if os.path.isfile(f'{cur_dir}Label Maker.exe'):
-            os.remove(f'{cur_dir}Label Maker.exe')
-        shutil.copy(f'{cur_dir}dist/{python_file_name}.exe', f'{cur_dir}Label Maker.exe')
+        if os.path.isfile(f'{cur_dir}LabelMaker.exe'):
+            os.remove(f'{cur_dir}LabelMaker.exe')
+        shutil.copy(f'{cur_dir}dist/{python_file_name}.exe', f'{cur_dir}LabelMaker.exe')
 
     # Remove build files
     clean_up()
@@ -36,7 +36,7 @@ execute = False
 
 if execute:
     overwrite_file = '_'
-    if os.path.isfile(f'{cur_dir}Label Maker.exe'):
+    if os.path.isfile(f'{cur_dir}LabelMaker.exe'):
         overwrite_file = input('Overwrite file? (y/n)... ')
     else:
         make_exe('main.py')
