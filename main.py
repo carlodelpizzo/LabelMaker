@@ -3,12 +3,12 @@ import datetime
 import pickle
 import tkinter as tk
 import psutil
-from tkinter import ttk, filedialog, Toplevel, StringVar, Label, Menu, END, DISABLED, NORMAL
+from tkinter import ttk, filedialog, Toplevel, StringVar, IntVar, Label, Checkbutton, Menu, END, DISABLED, NORMAL
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_TAB_ALIGNMENT, WD_BREAK
 
-version = '1.0'
+version = '1.1'
 
 program_font = 'Arial'
 
@@ -22,12 +22,16 @@ capital_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', '
 numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 valid_chars = ['(', ')', '_', '-', ' ', *letters, *capital_letters, *numbers]
 
+# Auto Capitalize, Groups
+
 
 class SaveData:
     def __init__(self, label_maker: object):
         self.username_str = label_maker.username.get()
         self.address_str = label_maker.address.get()
+        self.autoformat_int = label_maker.autoformat.get()
         self.food_items = label_maker.food_items
+        self.groups = label_maker.groups
 
 
 class FoodItem:
@@ -54,6 +58,11 @@ class FoodItem:
         self.ingredients = str(self.saved_ingredients).replace('\n', '')
 
 
+class LabelGroup:
+    def __init__(self):
+        pass
+
+
 class LabelMaker:
     def __init__(self):
         # Check for running instance
@@ -70,6 +79,8 @@ class LabelMaker:
         # Program Variables
         self.username = StringVar()
         self.address = StringVar()
+        self.autoformat = IntVar(value=1)
+        self.groups = []
         self.food_items = []
         self.food_items_dict = {}
         self.selectable_items = []
@@ -93,11 +104,21 @@ class LabelMaker:
                 save_data = pickle.load(file)
             if type(save_data) is not SaveData:
                 raise TypeError
-            self.username.set(save_data.username_str)
-            self.address.set(save_data.address_str)
-            self.food_items = save_data.food_items
-            self.food_items_dict = {item.name: item for item in self.food_items}
-            self.selectable_items = [item.get_name() for item in self.food_items]
+            load_funcs = [
+                lambda: self.username.set(save_data.username_str),
+                lambda: self.address.set(save_data.address_str),
+                lambda: self.autoformat.set(save_data.autoformat_int),
+                lambda: self.groups.extend(save_data.groups),
+                lambda: self.food_items.extend(save_data.food_items),
+                lambda: self.food_items_dict.update({item.name: item for item in self.food_items}),
+                lambda: self.selectable_items.extend([item.get_name() for item in self.food_items])
+                ]
+
+            for func in load_funcs:
+                try:
+                    func()
+                except AttributeError:
+                    continue
         else:
             first_run = True
 
@@ -123,7 +144,7 @@ class LabelMaker:
         self.item_name_box.place(x=90, y=50, anchor='w')
 
         self.edit_name_button = tk.Button(self.root, text='\u270E',
-                                          command=lambda: self.edit_item_name(food_item=self.selected_item))
+                                          command=lambda: self.edit_item_name_window(food_item=self.selected_item))
         self.edit_name_button.place(x=240, y=50, anchor='w')
 
         self.ingredients_label = tk.Label(self.root, text='Ingredients:', font=(program_font, 12))
@@ -210,7 +231,7 @@ class LabelMaker:
                     address_label_entry['background'] = 'pink'
                 address_label_entry.update()
             self.counter -= 1
-            window.after(150, blink_entry, entry_to_blink)
+            settings_window.after(150, blink_entry, entry_to_blink)
 
         def window_close():
             empty_entries = []
@@ -222,40 +243,53 @@ class LabelMaker:
                 self.counter = 6
                 blink_entry(empty_entries)
             else:
-                window.destroy()
-        window = Toplevel(self.root)
-        window.focus()
-        window.title('Edit Settings')
-        window.geometry('275x250')
-        window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
-        window.resizable(False, False)
-        window.protocol('WM_DELETE_WINDOW', window_close)
+                settings_window.destroy()
+        settings_window = Toplevel(self.root)
+        settings_window.focus()
+        settings_window.title('Edit Settings')
+        settings_window.geometry('275x250')
+        settings_window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
+        settings_window.resizable(False, False)
+        settings_window.protocol('WM_DELETE_WINDOW', window_close)
 
-        username_label = tk.Label(window, text='Name:', font=(program_font, 12))
+        username_label = tk.Label(settings_window, text='Name:', font=(program_font, 12))
         username_label.place(x=80, y=15, anchor='e')
-        username_label_entry = tk.Entry(window, textvariable=self.username, font=(program_font, 12))
+        username_label_entry = tk.Entry(settings_window, textvariable=self.username, font=(program_font, 12))
         username_label_entry.place(x=82, y=17, anchor='w')
 
-        address_label = tk.Label(window, text='Address:', font=(program_font, 12))
+        address_label = tk.Label(settings_window, text='Address:', font=(program_font, 12))
         address_label.place(x=80, y=45, anchor='e')
-        address_label_entry = tk.Entry(window, textvariable=self.address, font=(program_font, 12))
+        address_label_entry = tk.Entry(settings_window, textvariable=self.address, font=(program_font, 12))
         address_label_entry.place(x=82, y=47, anchor='w')
 
+        autoformat_check = Checkbutton(settings_window, text='Autoformat Text', variable=self.autoformat)
+        autoformat_check.place(x=5, y=75)
+
         if first_run:
-            window.title('Enter User Information')
-            window.grab_set()
-            window.focus()
-            window.transient(self.root)
+            settings_window.title('Enter User Information')
+            settings_window.grab_set()
+            settings_window.focus()
+            settings_window.transient(self.root)
 
     def save_item(self):
         if not self.item_name_box.get():
             return
         if self.selected_item:
+            ingredients = self.ingredients_entry.get('1.0', END).replace('\n', '')
+            if self.autoformat:
+                ingredients = self.format_ingredients(ingredients)
+                if self.selected_item.name != (new_name := self.format_item_name(self.selected_item.name)):
+                    self.change_item_name(self.selected_item, new_name)
             self.selected_item.save_item()
             self.update_combobox_text_only(self.selected_item.get_name())
             self.ingredients_entry.delete('1.0', END)
-            self.ingredients_entry.insert('1.0', self.selected_item.ingredients.replace('\n', ''))
+            self.ingredients_entry.insert('1.0', ingredients)
         else:
+            if self.autoformat:
+                self.update_combobox_text_only(self.format_item_name(self.item_name_box.get()))
+                ingredients = self.ingredients_entry.get('1.0', END)
+                self.ingredients_entry.delete('1.0', END)
+                self.ingredients_entry.insert('1.0', self.format_ingredients(ingredients))
             new_item = FoodItem(self.item_name_box.get(), self.ingredients_entry.get('1.0', END))
             self.food_items.append(new_item)
             self.food_items_dict[new_item.name] = new_item
@@ -299,7 +333,17 @@ class LabelMaker:
         cancel_button = tk.Button(del_window, text='Don\'t Delete', width=10, command=window_close)
         cancel_button.place(x=125, y=32, anchor='nw')
 
-    def edit_item_name(self, food_item):
+    def change_item_name(self, food_item, new_name: str):
+        if new_name in self.food_items_dict:
+            del self.food_items_dict[new_name]
+        del self.food_items_dict[food_item.name]
+        food_item.name = new_name
+        self.food_items_dict[food_item.name] = food_item
+        self.update_combobox_text_only(food_item.name)
+        self.update_combobox()
+        self.update_items_to_print_entry()
+
+    def edit_item_name_window(self, food_item):
         def window_close():
             def cancel_edit(*event):
                 if event and event[0].keysym != 'Return':
@@ -326,12 +370,7 @@ class LabelMaker:
                     edit_name_button.focus_set()
                     edit_name_button.place(x=112, y=31, anchor='n')
                     return
-                del self.food_items_dict[food_item.name]
-                food_item.name = new_item_name.get()
-                self.food_items_dict[food_item.name] = food_item
-                self.update_combobox_text_only(food_item.name)
-                self.update_combobox()
-                self.update_items_to_print_entry()
+                self.change_item_name(food_item, new_item_name.get())
             window.destroy()
 
         def key_release(event):
@@ -360,10 +399,35 @@ class LabelMaker:
         item_name_entry.bind('<KeyRelease>', key_release)
         item_name_entry.place(x=112, y=31, anchor='n')
 
+    @staticmethod
+    def format_item_name(item_name: str):
+        if len(item_name) < 2:
+            return
+        formatted_name = [capital_letters[letters.index(item_name[0])] if item_name[0] in letters else item_name[0]]
+        capitalize = False
+        for char in item_name[1:]:
+            if capitalize:
+                if char == ' ':
+                    continue
+                formatted_name.append(capital_letters[letters.index(char)] if char in letters else char)
+                capitalize = False
+                continue
+            if char == ' ':
+                capitalize = True
+            formatted_name.append(char)
+
+        return ''.join(formatted_name)
+
+    @staticmethod
+    def format_ingredients(ingredients: str):
+        if not ingredients:
+            return
+        return ingredients.rstrip(' ')
+
     def save_changes(self):
         def window_close(do='cancel'):
             if do == 'cancel':
-                window.destroy()
+                save_window.destroy()
                 return
             if do == 'save':
                 for item in self.food_items:
@@ -373,23 +437,24 @@ class LabelMaker:
                     item.revert()
             self.on_program_exit()
 
-        window = Toplevel(self.root)
-        window.grab_set()
-        window.focus()
-        window.transient(self.root)
-        window.title('Unsaved Changes')
-        window.geometry('240x80')
-        window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
-        window.resizable(False, False)
-        window.protocol('WM_DELETE_WINDOW', window_close)
+        save_window = Toplevel(self.root)
+        save_window.grab_set()
+        save_window.focus()
+        save_window.transient(self.root)
+        save_window.title('Unsaved Changes')
+        save_window.geometry('240x80')
+        save_window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
+        save_window.resizable(False, False)
+        save_window.protocol('WM_DELETE_WINDOW', window_close)
 
-        item_name_label = tk.Label(window, text='Save unsaved changes?', font=(program_font, 12))
+        item_name_label = tk.Label(save_window, text='Save unsaved changes?', font=(program_font, 12))
         item_name_label.place(x=120, y=22, anchor='s')
 
-        save_button = tk.Button(window, text='Save', width=10, command=lambda: window_close(do='save'))
+        save_button = tk.Button(save_window, text='Save', width=10, command=lambda: window_close(do='save'))
         save_button.place(x=115, y=32, anchor='ne')
 
-        cancel_button = tk.Button(window, text='Don\'t Save', width=10, command=lambda: window_close(do='dont save'))
+        cancel_button = tk.Button(save_window, text='Don\'t Save', width=10,
+                                  command=lambda: window_close(do='dont save'))
         cancel_button.place(x=125, y=32, anchor='nw')
 
     def textbox_edited(self, event):
