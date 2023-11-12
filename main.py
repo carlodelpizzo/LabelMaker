@@ -59,8 +59,9 @@ class FoodItem:
 
 
 class LabelGroup:
-    def __init__(self):
-        pass
+    def __init__(self, name: str, items: dict):
+        self.name = name
+        self.items = items
 
 
 class LabelMaker:
@@ -185,7 +186,12 @@ class LabelMaker:
         self.items_to_print_entry['state'] = DISABLED
 
         self.create_labels_button = tk.Button(self.root, text='Create Labels', width=10, command=self.save_labels)
-        self.create_labels_button.place(x=480, y=270, anchor='n')
+        self.create_labels_button.place(x=342, y=270, anchor='nw')
+
+        self.create_group_button = tk.Button(self.root, text='Create Group', width=10, command=lambda: print('create group'))
+        self.create_group_button.place(x=535, y=270, anchor='ne')
+        self.load_group_button = tk.Button(self.root, text='Load Group', width=10, command=lambda: print('load group'))
+        self.load_group_button.place(x=619, y=270, anchor='ne')
 
         # Version Label
         self.version_label = Label(self.root, text=version)
@@ -244,6 +250,12 @@ class LabelMaker:
                 blink_entry(empty_entries)
             else:
                 settings_window.destroy()
+
+        def autoformat_db():
+            for item in self.food_items:
+                item.edit_item(self.format_ingredients(item.ingredients))
+                self.change_item_name(item, self.format_item_name(item.name))
+
         settings_window = Toplevel(self.root)
         settings_window.focus()
         settings_window.title('Edit Settings')
@@ -264,6 +276,9 @@ class LabelMaker:
 
         autoformat_check = Checkbutton(settings_window, text='Autoformat Text', variable=self.autoformat)
         autoformat_check.place(x=5, y=75)
+
+        autoformat_button = tk.Button(settings_window, text='Autoformat Database', command=autoformat_db)
+        autoformat_button.place(x=5, y=100)
 
         if first_run:
             settings_window.title('Enter User Information')
@@ -416,13 +431,11 @@ class LabelMaker:
                 capitalize = True
             formatted_name.append(char)
 
-        return ''.join(formatted_name)
+        return ''.join(formatted_name).rstrip(' ')
 
     @staticmethod
     def format_ingredients(ingredients: str):
-        if not ingredients:
-            return
-        return ingredients.rstrip(' ')
+        return ingredients.rstrip(' ') if ingredients else ''
 
     def save_changes(self):
         def window_close(do='cancel'):
@@ -494,6 +507,8 @@ class LabelMaker:
         if not (item_name := self.item_name_box.get().replace('*', '')):
             return
         if self.auto_save and self.auto_save_name != self.item_name_box.get():
+            if self.autoformat:
+                self.auto_save_name = self.format_item_name(self.auto_save_name)
             new_item = FoodItem(self.auto_save_name, self.ingredients_entry.get('1.0', END))
             new_item.edited = True
             self.food_items.append(new_item)
@@ -608,6 +623,18 @@ class LabelMaker:
         self.save_path = os.path.dirname(out_file_path)
         document = self.create_labels()
         document.save(out_file_path)
+
+    def create_label_group(self):
+        group_name = ''
+        for group in self.groups:
+            if self.labels_to_print == group.items:
+                group_name = group.name
+                break
+        # popup window with group name
+
+    def load_label_group(self):
+        # popup list of self.groups group names
+        pass
 
     def change_selected_item(self, item=None):
         item_name = item.name if item else ''
