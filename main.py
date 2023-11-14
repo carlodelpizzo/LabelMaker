@@ -22,7 +22,7 @@ capital_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', '
 numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 valid_chars = ['(', ')', '_', '-', ' ', *letters, *capital_letters, *numbers]
 
-# Auto Capitalize, Groups
+# Groups
 
 
 class SaveData:
@@ -61,7 +61,7 @@ class FoodItem:
 class LabelGroup:
     def __init__(self, name: str, items: dict):
         self.name = name
-        self.items = items
+        self.items = {**items}
 
 
 class LabelMaker:
@@ -188,9 +188,9 @@ class LabelMaker:
         self.create_labels_button = tk.Button(self.root, text='Create Labels', width=10, command=self.save_labels)
         self.create_labels_button.place(x=342, y=270, anchor='nw')
 
-        self.create_group_button = tk.Button(self.root, text='Create Group', width=10, command=lambda: print('create group'))
-        self.create_group_button.place(x=535, y=270, anchor='ne')
-        self.load_group_button = tk.Button(self.root, text='Load Group', width=10, command=lambda: print('load group'))
+        self.save_group_button = tk.Button(self.root, text='Save Group', width=10, command=self.save_label_group)
+        self.save_group_button.place(x=535, y=270, anchor='ne')
+        self.load_group_button = tk.Button(self.root, text='Load Group', width=10, command=self.load_label_group)
         self.load_group_button.place(x=619, y=270, anchor='ne')
 
         # Version Label
@@ -254,7 +254,8 @@ class LabelMaker:
         def autoformat_db():
             for item in self.food_items:
                 item.edit_item(self.format_ingredients(item.ingredients))
-                self.change_item_name(item, self.format_item_name(item.name))
+                if item.name != self.format_item_name(item.name):
+                    self.change_item_name(item, self.format_item_name(item.name))
 
         settings_window = Toplevel(self.root)
         settings_window.focus()
@@ -292,7 +293,7 @@ class LabelMaker:
         if self.selected_item:
             ingredients = self.ingredients_entry.get('1.0', END).replace('\n', '')
             if self.autoformat:
-                ingredients = self.format_ingredients(ingredients)
+                self.selected_item.ingredients = (ingredients := self.format_ingredients(ingredients))
                 if self.selected_item.name != (new_name := self.format_item_name(self.selected_item.name)):
                     self.change_item_name(self.selected_item, new_name)
             self.selected_item.save_item()
@@ -302,7 +303,7 @@ class LabelMaker:
         else:
             if self.autoformat:
                 self.update_combobox_text_only(self.format_item_name(self.item_name_box.get()))
-                ingredients = self.ingredients_entry.get('1.0', END)
+                ingredients = self.ingredients_entry.get('1.0', END).replace('\n', '')
                 self.ingredients_entry.delete('1.0', END)
                 self.ingredients_entry.insert('1.0', self.format_ingredients(ingredients))
             new_item = FoodItem(self.item_name_box.get(), self.ingredients_entry.get('1.0', END))
@@ -364,17 +365,17 @@ class LabelMaker:
                 if event and event[0].keysym != 'Return':
                     return
                 error_window.destroy()
-                window.destroy()
+                edit_name_window.destroy()
 
             if food_item.name != new_item_name.get():
                 if new_item_name.get() in self.food_items_dict:
-                    error_window = Toplevel(window)
+                    error_window = Toplevel(edit_name_window)
                     error_window.grab_set()
                     error_window.focus()
-                    error_window.transient(window)
+                    error_window.transient(edit_name_window)
                     error_window.title('Error')
                     error_window.geometry('225x100')
-                    error_window.geometry(f'+{window.winfo_rootx()}+{window.winfo_rooty()}')
+                    error_window.geometry(f'+{edit_name_window.winfo_rootx()}+{edit_name_window.winfo_rooty()}')
                     error_window.resizable(False, False)
 
                     existing_name_label = tk.Label(error_window, text='Name already exists', font=(program_font, 12))
@@ -386,7 +387,7 @@ class LabelMaker:
                     edit_name_button.place(x=112, y=31, anchor='n')
                     return
                 self.change_item_name(food_item, new_item_name.get())
-            window.destroy()
+            edit_name_window.destroy()
 
         def key_release(event):
             if event.keysym == 'Return':
@@ -398,19 +399,19 @@ class LabelMaker:
         new_item_name = StringVar()
         new_item_name.set(food_item.name)
 
-        window = Toplevel(self.root)
-        window.grab_set()
-        window.focus()
-        window.transient(self.root)
-        window.title('Edit Item Name')
-        window.geometry('225x100')
-        window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
-        window.resizable(False, False)
-        window.protocol('WM_DELETE_WINDOW', window_close)
+        edit_name_window = Toplevel(self.root)
+        edit_name_window.grab_set()
+        edit_name_window.focus()
+        edit_name_window.transient(self.root)
+        edit_name_window.title('Edit Item Name')
+        edit_name_window.geometry('225x100')
+        edit_name_window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
+        edit_name_window.resizable(False, False)
+        edit_name_window.protocol('WM_DELETE_WINDOW', window_close)
 
-        item_name_label = tk.Label(window, text='Item Name:', font=(program_font, 12))
+        item_name_label = tk.Label(edit_name_window, text='Item Name:', font=(program_font, 12))
         item_name_label.place(x=112, y=29, anchor='s')
-        item_name_entry = tk.Entry(window, textvariable=new_item_name, font=(program_font, 12))
+        item_name_entry = tk.Entry(edit_name_window, textvariable=new_item_name, font=(program_font, 12))
         item_name_entry.bind('<KeyRelease>', key_release)
         item_name_entry.place(x=112, y=31, anchor='n')
 
@@ -624,17 +625,63 @@ class LabelMaker:
         document = self.create_labels()
         document.save(out_file_path)
 
-    def create_label_group(self):
+    def save_label_group(self, *_):
+        if not self.labels_to_print:
+            return
+
         group_name = ''
         for group in self.groups:
-            if self.labels_to_print == group.items:
+            if group.items == self.labels_to_print:
                 group_name = group.name
                 break
-        # popup window with group name
 
-    def load_label_group(self):
-        # popup list of self.groups group names
-        pass
+        def save_and_close():
+            new_group_name_str = new_group_name.get()
+            existing_group = None
+            for group_ in self.groups:
+                if group_.name == new_group_name_str:
+                    existing_group = group_
+                    break
+            if existing_group:
+                self.groups.pop(index_of_group := self.groups.index(existing_group))
+                self.groups.insert(index_of_group, LabelGroup(new_group_name_str, self.labels_to_print))
+            else:
+                self.groups.append(LabelGroup(new_group_name_str, self.labels_to_print))
+            save_group_window.destroy()
+
+        def key_release(event):
+            if event.keysym == 'Return':
+                save_and_close()
+
+        new_group_name = StringVar()
+        new_group_name.set(group_name)
+
+        save_group_window = Toplevel(self.root)
+        save_group_window.grab_set()
+        save_group_window.focus()
+        save_group_window.transient(self.root)
+        window_title = 'Save Group'
+        save_group_window.title(window_title)
+        save_group_window.geometry('225x100')
+        save_group_window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
+        save_group_window.resizable(False, False)
+
+        group_name_label = tk.Label(save_group_window, text='Group Name:', font=(program_font, 12))
+        group_name_label.place(x=112, y=29, anchor='s')
+        group_name_entry = tk.Entry(save_group_window, textvariable=new_group_name, font=(program_font, 12))
+        group_name_entry.bind('<KeyRelease>', key_release)
+        group_name_entry.place(x=112, y=31, anchor='n')
+
+        save_group_button = tk.Button(save_group_window, text='Save', width=10, command=save_and_close)
+        save_group_button.place(x=107, y=60, anchor='ne')
+
+        cancel_button = tk.Button(save_group_window, text='Cancel', width=10, command=save_group_window.destroy)
+        cancel_button.place(x=117, y=60, anchor='nw')
+
+    def load_label_group(self, *_):
+        if not self.groups:
+            return
+        print('load label group')
 
     def change_selected_item(self, item=None):
         item_name = item.name if item else ''
