@@ -3,7 +3,8 @@ import datetime
 import pickle
 import tkinter as tk
 import psutil
-from tkinter import ttk, filedialog, Toplevel, StringVar, IntVar, Label, Checkbutton, Menu, END, DISABLED, NORMAL
+from tkinter import ttk, filedialog, Toplevel, StringVar, IntVar, Label, Checkbutton, Radiobutton
+from tkinter import Menu, END, DISABLED, NORMAL
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_TAB_ALIGNMENT, WD_BREAK
@@ -681,7 +682,52 @@ class LabelMaker:
     def load_label_group(self, *_):
         if not self.groups:
             return
-        print('load label group')
+
+        def load_group():
+            print('load group')
+
+        def delete_group():
+            print('ask are you sure', 'delete group')
+
+        load_group_window = Toplevel(self.root)
+        load_group_window.grab_set()
+        load_group_window.focus()
+        load_group_window.transient(self.root)
+        window_title = 'Load Group'
+        load_group_window.title(window_title)
+        win_height, win_width = 290, 275
+        load_group_window.geometry(f'{win_height}x{win_width}')
+        load_group_window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
+        load_group_window.resizable(False, False)
+
+        load_group_button = tk.Button(load_group_window, text='Load', width=10, command=load_group)
+        load_group_button.place(x=(win_width / 2) - 5, y=win_height - 20, anchor='se')
+
+        delete_group_button = tk.Button(load_group_window, text='Delete', width=10, command=delete_group)
+        delete_group_button.place(x=(win_width / 2) + 5, y=win_height - 20, anchor='sw')
+
+        container = ttk.Frame(load_group_window)
+        canvas = tk.Canvas(container, height=win_height - 50, width=win_width - 12)
+        scrollbar = ttk.Scrollbar(container, orient='vertical', command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        scrollable_frame.bind('<Configure>', lambda _: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.create_window((0, 0), window=scrollable_frame, anchor='nw')
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        radio_group_dict = {}
+        selected_radio = IntVar()
+        # noinspection PyTypeChecker
+        selected_radio.set(None)
+
+        for i, group in enumerate(self.groups):
+            radio_group_dict[i] = group
+            radiobutton = Radiobutton(scrollable_frame, text=group.name, variable=selected_radio, value=i,
+                                      command=lambda: print(selected_radio.get()))
+            radiobutton.grid(sticky='w', row=i, column=0)
+
+        container.pack()
+        canvas.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
 
     def change_selected_item(self, item=None):
         item_name = item.name if item else ''
