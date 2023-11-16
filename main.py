@@ -180,6 +180,9 @@ class LabelMaker:
         self.add_item_button = tk.Button(self.root, text='Add', width=3, command=self.add_item)
         self.add_item_button.place(x=540, y=52, anchor='w')
 
+        self.clear_button = tk.Button(self.root, text='Clear', width=4, command=self.clear_labels_to_print)
+        self.clear_button.place(x=615, y=95, anchor='se')
+
         self.items_to_print_label = tk.Label(self.root, text='Labels to print:', font=(program_font, 12))
         self.items_to_print_label.place(x=393, y=95, anchor='s')
         self.items_to_print_entry = tk.Text(self.root, width=30, height=9, font=(program_font, 12))
@@ -551,6 +554,34 @@ class LabelMaker:
             self.labels_to_print[self.selected_item] = self.spinbox.get()
         self.update_items_to_print_entry()
 
+    def clear_labels_to_print(self):
+        if not self.labels_to_print:
+            return
+
+        def clear_entry(do_clear=True):
+            if do_clear:
+                self.labels_to_print = {}
+                self.update_items_to_print_entry()
+            confirm_clear_pop_up.destroy()
+
+        confirm_clear_pop_up = Toplevel(self.root)
+        confirm_clear_pop_up.title('Confirm Clear')
+        confirm_clear_pop_up.geometry('240x70')
+        confirm_clear_pop_up.geometry(f'+{self.root.winfo_rootx() + 370}+{self.root.winfo_rooty()}')
+        confirm_clear_pop_up.grab_set()
+        confirm_clear_pop_up.focus()
+        confirm_clear_pop_up.transient(self.root)
+        confirm_clear_pop_up.resizable(False, False)
+
+        confirm_label = Label(confirm_clear_pop_up, text='Clear labels to print?')
+        confirm_label.place(x=120, y=10, anchor='n')
+
+        yes_button = tk.Button(confirm_clear_pop_up, text='Yes', width='10', command=clear_entry)
+        yes_button.place(x=115, y=65, anchor='se')
+
+        no_button = tk.Button(confirm_clear_pop_up, text='No', width='10', command=lambda: clear_entry(do_clear=False))
+        no_button.place(x=125, y=65, anchor='sw')
+
     def update_items_to_print_entry(self):
         labels_to_print = []
         for item in self.labels_to_print:
@@ -684,10 +715,45 @@ class LabelMaker:
             return
 
         def load_group():
-            print('load group')
+            if selected_radio.get() < 0:
+                return
 
-        def delete_group():
-            print('ask are you sure', 'delete group')
+            self.labels_to_print = {**radio_group_dict[selected_radio.get()].items}
+            self.update_items_to_print_entry()
+            load_group_window.destroy()
+
+        def confirm_delete():
+            if selected_radio.get() < 0:
+                return
+
+            def delete_group(do_delete=True):
+                if do_delete:
+                    self.groups.pop(self.groups.index(radio_group_dict[selected_radio.get()]))
+                    radio_button = radio_buttons[selected_radio.get()]
+                    radio_button.config(text=f'{radio_button.cget("text")} - DELETED')
+                    selected_radio.set(-1)
+                    radio_button['state'] = DISABLED
+                confirm_del_pop_up.destroy()
+
+            confirm_del_pop_up = Toplevel(load_group_window)
+            confirm_del_pop_up.title('Confirm Delete')
+            confirm_del_pop_up.geometry('240x70')
+            confirm_del_pop_up.geometry(f'+{load_group_window.winfo_rootx()}+{load_group_window.winfo_rooty()}')
+            confirm_del_pop_up.grab_set()
+            confirm_del_pop_up.focus()
+            confirm_del_pop_up.transient(load_group_window)
+            confirm_del_pop_up.resizable(False, False)
+
+            confirm_label = Label(confirm_del_pop_up,
+                                  text=f'Delete {radio_group_dict[selected_radio.get()].name} group?')
+            confirm_label.place(x=120, y=10, anchor='n')
+
+            yes_button = tk.Button(confirm_del_pop_up, text='Yes', width='10', command=delete_group)
+            yes_button.place(x=115, y=65, anchor='se')
+
+            no_button = tk.Button(confirm_del_pop_up, text='No', width='10',
+                                  command=lambda: delete_group(do_delete=False))
+            no_button.place(x=125, y=65, anchor='sw')
 
         load_group_window = Toplevel(self.root)
         load_group_window.grab_set()
@@ -695,39 +761,41 @@ class LabelMaker:
         load_group_window.transient(self.root)
         window_title = 'Load Group'
         load_group_window.title(window_title)
-        win_height, win_width = 290, 275
+        win_height, win_width = 300, 275
         load_group_window.geometry(f'{win_height}x{win_width}')
         load_group_window.geometry(f'+{self.root.winfo_rootx()}+{self.root.winfo_rooty()}')
         load_group_window.resizable(False, False)
 
         load_group_button = tk.Button(load_group_window, text='Load', width=10, command=load_group)
-        load_group_button.place(x=(win_width / 2) - 5, y=win_height - 20, anchor='se')
+        load_group_button.place(x=(win_width / 2) - 5, y=win_height - 28, anchor='se')
 
-        delete_group_button = tk.Button(load_group_window, text='Delete', width=10, command=delete_group)
-        delete_group_button.place(x=(win_width / 2) + 5, y=win_height - 20, anchor='sw')
+        delete_group_button = tk.Button(load_group_window, text='Delete', width=10, command=confirm_delete)
+        delete_group_button.place(x=(win_width / 2) + 5, y=win_height - 28, anchor='sw')
 
         container = ttk.Frame(load_group_window)
-        canvas = tk.Canvas(container, height=win_height - 50, width=win_width - 12)
+        canvas = tk.Canvas(container, height=win_height - 55, width=win_width - 12)
         scrollbar = ttk.Scrollbar(container, orient='vertical', command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
         scrollable_frame.bind('<Configure>', lambda _: canvas.configure(scrollregion=canvas.bbox('all')))
         canvas.create_window((0, 0), window=scrollable_frame, anchor='nw')
         canvas.configure(yscrollcommand=scrollbar.set)
+        if len(self.groups) > 10:
+            canvas.bind_all('<MouseWheel>',
+                            lambda event: canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units'))
 
         radio_group_dict = {}
         selected_radio = IntVar()
-        # noinspection PyTypeChecker
-        selected_radio.set(None)
-
+        radio_buttons = {}
         for i, group in enumerate(self.groups):
             radio_group_dict[i] = group
-            radiobutton = Radiobutton(scrollable_frame, text=group.name, variable=selected_radio, value=i,
-                                      command=lambda: print(selected_radio.get()))
-            radiobutton.grid(sticky='w', row=i, column=0)
+            radio_buttons[i] = Radiobutton(scrollable_frame, text=group.name, variable=selected_radio, value=i)
+            radio_buttons[i].grid(sticky='w', row=i, column=0)
+        selected_radio.set(-1)
 
         container.pack()
         canvas.pack(side='left', fill='both', expand=True)
-        scrollbar.pack(side='right', fill='y')
+        if len(self.groups) > 10:
+            scrollbar.pack(side='right', fill='y')
 
     def change_selected_item(self, item=None):
         item_name = item.name if item else ''
