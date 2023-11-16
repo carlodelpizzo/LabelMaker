@@ -23,8 +23,6 @@ capital_letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', '
 numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 valid_chars = ['(', ')', '_', '-', ' ', *letters, *capital_letters, *numbers]
 
-# Groups
-
 
 class SaveData:
     def __init__(self, label_maker: object):
@@ -87,6 +85,7 @@ class LabelMaker:
         self.food_items_dict = {}
         self.selectable_items = []
         self.selected_item = None
+        self.last_used_group_name = ''
         self.label_size = (4, 1)
         self.labels_to_print = {}
         self.auto_save = False
@@ -661,13 +660,43 @@ class LabelMaker:
         if not self.labels_to_print:
             return
 
-        group_name = ''
-        for group in self.groups:
-            if group.items == self.labels_to_print:
-                group_name = group.name
-                break
+        if not self.last_used_group_name:
+            group_name = ''
+            for group in self.groups:
+                if group.items == self.labels_to_print:
+                    group_name = group.name
+                    break
+        else:
+            group_name = self.last_used_group_name
 
         def save_and_close():
+            def confirm_overwrite():
+                def do_overwrite():
+                    self.groups.pop(index_of_group := self.groups.index(existing_group))
+                    self.groups.insert(index_of_group, LabelGroup(new_group_name_str, self.labels_to_print))
+                    self.last_used_group_name = new_group_name_str
+                    confirm_overwrite_pop_up.destroy()
+                    save_group_window.destroy()
+
+                confirm_overwrite_pop_up = Toplevel(save_group_window)
+                confirm_overwrite_pop_up.title('Overwrite Existing Group?')
+                confirm_overwrite_pop_up.geometry('240x70')
+                confirm_overwrite_pop_up.geometry(
+                    f'+{save_group_window.winfo_rootx()}+{save_group_window.winfo_rooty()}')
+                confirm_overwrite_pop_up.grab_set()
+                confirm_overwrite_pop_up.focus()
+                confirm_overwrite_pop_up.transient(save_group_window)
+                confirm_overwrite_pop_up.resizable(False, False)
+
+                confirm_label = Label(confirm_overwrite_pop_up, text=f'Overwrite "{new_group_name_str}" group?')
+                confirm_label.place(x=120, y=10, anchor='n')
+
+                yes_button = tk.Button(confirm_overwrite_pop_up, text='Yes', width='10', command=do_overwrite)
+                yes_button.place(x=115, y=65, anchor='se')
+
+                no_button = tk.Button(confirm_overwrite_pop_up, text='No', width='10',
+                                      command=confirm_overwrite_pop_up.destroy)
+                no_button.place(x=125, y=65, anchor='sw')
             new_group_name_str = new_group_name.get()
             existing_group = None
             for group_ in self.groups:
@@ -675,10 +704,10 @@ class LabelMaker:
                     existing_group = group_
                     break
             if existing_group:
-                self.groups.pop(index_of_group := self.groups.index(existing_group))
-                self.groups.insert(index_of_group, LabelGroup(new_group_name_str, self.labels_to_print))
-            else:
-                self.groups.append(LabelGroup(new_group_name_str, self.labels_to_print))
+                confirm_overwrite()
+                return
+            self.groups.append(LabelGroup(new_group_name_str, self.labels_to_print))
+            self.last_used_group_name = new_group_name_str
             save_group_window.destroy()
 
         def key_release(event):
@@ -720,6 +749,7 @@ class LabelMaker:
 
             self.labels_to_print = {**radio_group_dict[selected_radio.get()].items}
             self.update_items_to_print_entry()
+            self.last_used_group_name = radio_group_dict[selected_radio.get()].name
             load_group_window.destroy()
 
         def confirm_delete():
@@ -745,7 +775,7 @@ class LabelMaker:
             confirm_del_pop_up.resizable(False, False)
 
             confirm_label = Label(confirm_del_pop_up,
-                                  text=f'Delete {radio_group_dict[selected_radio.get()].name} group?')
+                                  text=f'Delete "{radio_group_dict[selected_radio.get()].name}" group?')
             confirm_label.place(x=120, y=10, anchor='n')
 
             yes_button = tk.Button(confirm_del_pop_up, text='Yes', width='10', command=delete_group)
@@ -759,7 +789,7 @@ class LabelMaker:
         load_group_window.grab_set()
         load_group_window.focus()
         load_group_window.transient(self.root)
-        window_title = 'Load Group'
+        window_title = 'Select Group'
         load_group_window.title(window_title)
         win_height, win_width = 300, 275
         load_group_window.geometry(f'{win_height}x{win_width}')
@@ -773,7 +803,7 @@ class LabelMaker:
         delete_group_button.place(x=(win_width / 2) + 5, y=win_height - 28, anchor='sw')
 
         container = ttk.Frame(load_group_window)
-        canvas = tk.Canvas(container, height=win_height - 55, width=win_width - 12)
+        canvas = tk.Canvas(container, height=win_height - 58, width=win_width - 12)
         scrollbar = ttk.Scrollbar(container, orient='vertical', command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
         scrollable_frame.bind('<Configure>', lambda _: canvas.configure(scrollregion=canvas.bbox('all')))
@@ -782,6 +812,8 @@ class LabelMaker:
         if len(self.groups) > 10:
             canvas.bind_all('<MouseWheel>',
                             lambda event: canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units'))
+        else:
+            canvas.bind_all('<MouseWheel>', lambda _: None)
 
         radio_group_dict = {}
         selected_radio = IntVar()
