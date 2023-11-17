@@ -1,4 +1,5 @@
 import os
+import shutil
 import datetime
 import pickle
 import tkinter as tk
@@ -31,6 +32,7 @@ class SaveData:
         self.autoformat_int = label_maker.autoformat.get()
         self.food_items = label_maker.food_items
         self.groups = label_maker.groups
+        self.version = label_maker.version
 
 
 class FoodItem:
@@ -77,6 +79,7 @@ class LabelMaker:
         self.root.resizable(False, False)
 
         # Program Variables
+        self.version = float(version)
         self.username = StringVar()
         self.address = StringVar()
         self.autoformat = IntVar(value=1)
@@ -105,6 +108,13 @@ class LabelMaker:
                 save_data = pickle.load(file)
             if type(save_data) is not SaveData:
                 raise TypeError
+
+            try:
+                if save_data.version < self.version:
+                    shutil.copy(file_path, f'{file_path}-{save_data.version}')
+            except AttributeError:
+                shutil.copy(file_path, f'{file_path}-backup')
+
             load_funcs = [
                 lambda: self.username.set(save_data.username_str),
                 lambda: self.address.set(save_data.address_str),
