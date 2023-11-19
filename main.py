@@ -5,12 +5,12 @@ import pickle
 import tkinter as tk
 import psutil
 from tkinter import ttk, filedialog, Toplevel, StringVar, IntVar, Label, Checkbutton, Radiobutton
-from tkinter import Menu, END, DISABLED, NORMAL
+from tkinter import Menu, END, DISABLED, NORMAL, INSERT
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_TAB_ALIGNMENT, WD_BREAK
 
-version = '1.1'
+version = '1.1.1'
 
 program_font = 'Arial'
 
@@ -79,7 +79,7 @@ class LabelMaker:
         self.root.resizable(False, False)
 
         # Program Variables
-        self.version = float(version)
+        self.version = version
         self.username = StringVar()
         self.address = StringVar()
         self.autoformat = IntVar(value=1)
@@ -109,8 +109,32 @@ class LabelMaker:
             if type(save_data) is not SaveData:
                 raise TypeError
 
+            # Returns True if ver0 > ver1
+            def version_compare(ver0: str, ver1: str):
+                def safe_int(string: str):
+                    try:
+                        return int(string)
+                    except ValueError:
+                        return None
+
+                if ver0 == ver1:
+                    return False
+
+                ver0_list = [safe_int(item) for item in ver0.split('.') if safe_int(item) is not None]
+                ver1_list = [safe_int(item) for item in ver1.split('.') if safe_int(item) is not None]
+                if len(ver0_list) != len(ver1_list):
+                    longest_list = ver0_list if len(ver0_list) > len(ver1_list) else ver1_list
+                else:
+                    longest_list = None
+                for i in range(len(ver0_list) if len(ver0_list) <= len(ver1_list) else len(ver1_list)):
+                    if ver0_list[i] <= ver1_list[i]:
+                        continue
+                    return True
+                return longest_list is not ver1_list
+
             try:
-                if save_data.version < self.version:
+                if (type(save_data.version) is float or
+                        (type(save_data.version) is str and version_compare(self.version, save_data.version))):
                     shutil.copy(file_path, f'{file_path}-{save_data.version}')
             except AttributeError:
                 shutil.copy(file_path, f'{file_path}-backup')
@@ -301,6 +325,12 @@ class LabelMaker:
             settings_window.transient(self.root)
 
     def save_item(self):
+        def refresh_ingredients(text: str):
+            cursor_pos = int(self.ingredients_entry.index(INSERT)[2:])
+            self.ingredients_entry.delete('1.0', END)
+            self.ingredients_entry.insert('1.0', text)
+            self.ingredients_entry.mark_set(INSERT, f'1.{cursor_pos}')
+
         if not self.item_name_box.get():
             return
         if self.selected_item:
@@ -311,14 +341,12 @@ class LabelMaker:
                     self.change_item_name(self.selected_item, new_name)
             self.selected_item.save_item()
             self.update_combobox_text_only(self.selected_item.get_name())
-            self.ingredients_entry.delete('1.0', END)
-            self.ingredients_entry.insert('1.0', ingredients)
+            refresh_ingredients(ingredients)
         else:
             if self.autoformat:
                 self.update_combobox_text_only(self.format_item_name(self.item_name_box.get()))
-                ingredients = self.ingredients_entry.get('1.0', END).replace('\n', '')
-                self.ingredients_entry.delete('1.0', END)
-                self.ingredients_entry.insert('1.0', self.format_ingredients(ingredients))
+                refresh_ingredients(self.format_ingredients(
+                    self.ingredients_entry.get('1.0', END).replace('\n', '')))
             new_item = FoodItem(self.item_name_box.get(), self.ingredients_entry.get('1.0', END))
             self.food_items.append(new_item)
             self.food_items_dict[new_item.name] = new_item
@@ -449,7 +477,7 @@ class LabelMaker:
 
     @staticmethod
     def format_ingredients(ingredients: str):
-        return ingredients.rstrip(' ') if ingredients else ''
+        return ingredients.rstrip(' ').replace('\n', '') if ingredients else ''
 
     def save_changes(self):
         def window_close(do='cancel'):
@@ -488,10 +516,12 @@ class LabelMaker:
         if event.keysym in ['Right', 'Left', 'Up', 'Down']:
             return
         if event.keysym == 'Return':
-            self.save_item()
+            # self.save_item()
+            # cursor_pos = int(self.ingredients_entry.index(INSERT)[2:])
             textbox_contents = self.ingredients_entry.get('1.0', END).replace('\n', '')
             self.ingredients_entry.delete('1.0', END)
             self.ingredients_entry.insert('1.0', textbox_contents)
+            self.ingredients_entry.mark_set(INSERT, END)
             return
         if self.selected_item:
             self.selected_item.edit_item(self.ingredients_entry.get('1.0', END))
@@ -546,10 +576,12 @@ class LabelMaker:
 
     def update_combobox_text_only(self, value: str):
         selected_item = self.selected_item
-        textbox_contents = self.ingredients_entry.get('1.0', END).replace('\n', '')
+        cursor_pos = int(self.ingredients_entry.index(INSERT)[2:])
+        textbox_contents = self.ingredients_entry.get('1.0', END)
         self.item_name.set(value)
         self.ingredients_entry.delete('1.0', END)
         self.ingredients_entry.insert('1.0', textbox_contents)
+        self.ingredients_entry.mark_set(INSERT, f'1.{cursor_pos}')
         self.change_selected_item(selected_item)
 
     def add_item(self):
