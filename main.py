@@ -97,65 +97,13 @@ class LabelMaker:
         self.save_path = f'{os.path.join(os.environ["USERPROFILE"])}/Desktop'
         self.counter = 0
 
-        # File management
-        first_run = False
+        # File management and load saved data
+        first_run = True
         if not os.path.isdir(program_dir):
             os.mkdir(program_dir)
-            first_run = True
         elif os.path.isfile(file_path := f'{program_dir}/savedata'):
-            # Load saved information
-            with open(file_path, 'rb') as file:
-                save_data = pickle.load(file)
-            if type(save_data) is not SaveData:
-                raise TypeError
-
-            # Returns True if ver0 > ver1
-            def version_compare(ver0: str, ver1: str):
-                def safe_int(string: str):
-                    try:
-                        return int(string)
-                    except ValueError:
-                        return None
-
-                if ver0 == ver1:
-                    return False
-
-                ver0_list = [safe_int(item) for item in ver0.split('.') if safe_int(item) is not None]
-                ver1_list = [safe_int(item) for item in ver1.split('.') if safe_int(item) is not None]
-                if len(ver0_list) != len(ver1_list):
-                    longest_list = ver0_list if len(ver0_list) > len(ver1_list) else ver1_list
-                else:
-                    longest_list = None
-                for i in range(len(ver0_list) if len(ver0_list) <= len(ver1_list) else len(ver1_list)):
-                    if ver0_list[i] <= ver1_list[i]:
-                        continue
-                    return True
-                return longest_list is not ver1_list
-
-            try:
-                if (type(save_data.version) is float or
-                        (type(save_data.version) is str and version_compare(self.version, save_data.version))):
-                    shutil.copy(file_path, f'{file_path}-{save_data.version}')
-            except AttributeError:
-                shutil.copy(file_path, f'{file_path}-backup')
-
-            load_funcs = [
-                lambda: self.username.set(save_data.username_str),
-                lambda: self.address.set(save_data.address_str),
-                lambda: self.autoformat.set(save_data.autoformat_int),
-                lambda: self.groups.extend(save_data.groups),
-                lambda: self.food_items.extend(save_data.food_items),
-                lambda: self.food_items_dict.update({item.name: item for item in self.food_items}),
-                lambda: self.selectable_items.extend([item.get_name() for item in self.food_items])
-                ]
-
-            for func in load_funcs:
-                try:
-                    func()
-                except AttributeError:
-                    continue
-        else:
-            first_run = True
+            self.load_save_data(file_path)
+            first_run = False
 
         # Window Menu
         self.menu = Menu(self.root)
@@ -239,6 +187,60 @@ class LabelMaker:
             self.root.after(1, self.on_first_run)
         self.root.protocol('WM_DELETE_WINDOW', self.on_program_exit)
         self.root.mainloop()
+
+    def load_save_data(self, file_path: str):
+        # Returns True if ver0 > ver1
+        def version_compare(ver0: str, ver1: str):
+            def safe_int(string: str):
+                try:
+                    return int(string)
+                except ValueError:
+                    return None
+
+            if ver0 == ver1:
+                return False
+
+            ver0_list = [safe_int(item) for item in ver0.split('.') if safe_int(item) is not None]
+            ver1_list = [safe_int(item) for item in ver1.split('.') if safe_int(item) is not None]
+            if list_diff := abs(len(ver0_list) - len(ver1_list)):
+                padding = [0 for _ in range(list_diff)]
+                if len(ver0_list) < len(ver1_list):
+                    ver0_list.extend(padding)
+                else:
+                    ver1_list.extend(padding)
+            for i, ver0_num in enumerate(ver0_list):
+                if ver0_num <= ver1_list[i]:
+                    continue
+                return True
+            return False
+
+        with open(file_path, 'rb') as file:
+            save_data = pickle.load(file)
+        if type(save_data) is not SaveData:
+            raise TypeError
+
+        try:
+            if (type(save_data.version) is float or
+                    (type(save_data.version) is str and version_compare(self.version, save_data.version))):
+                shutil.copy(file_path, f'{file_path}-{save_data.version}')
+        except AttributeError:
+            shutil.copy(file_path, f'{file_path}-backup-{self.date_stamp}')
+
+        load_funcs = [
+            lambda: self.username.set(save_data.username_str),
+            lambda: self.address.set(save_data.address_str),
+            lambda: self.autoformat.set(save_data.autoformat_int),
+            lambda: self.groups.extend(save_data.groups),
+            lambda: self.food_items.extend(save_data.food_items),
+            lambda: self.food_items_dict.update({item.name: item for item in self.food_items}),
+            lambda: self.selectable_items.extend([item.get_name() for item in self.food_items])
+        ]
+
+        for func in load_funcs:
+            try:
+                func()
+            except AttributeError:
+                continue
 
     def on_program_exit(self):
         if any(item.edited for item in self.food_items):
