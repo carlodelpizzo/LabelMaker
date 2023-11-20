@@ -290,12 +290,6 @@ class LabelMaker:
             else:
                 settings_window.destroy()
 
-        def autoformat_db():
-            for item in self.food_items:
-                item.edit_item(self.format_ingredients(item.ingredients))
-                if item.name != self.format_item_name(item.name):
-                    self.change_item_name(item, self.format_item_name(item.name))
-
         settings_window = Toplevel(self.root)
         settings_window.focus()
         settings_window.title('Edit Settings')
@@ -316,9 +310,6 @@ class LabelMaker:
 
         autoformat_check = Checkbutton(settings_window, text='Autoformat Text', variable=self.autoformat)
         autoformat_check.place(x=5, y=75)
-
-        autoformat_button = tk.Button(settings_window, text='Autoformat Database', command=autoformat_db)
-        autoformat_button.place(x=5, y=100)
 
         if first_run:
             settings_window.title('Enter User Information')
@@ -479,7 +470,17 @@ class LabelMaker:
 
     @staticmethod
     def format_ingredients(ingredients: str):
-        return ingredients.rstrip(' ').replace('\n', '') if ingredients else ''
+        if not ingredients:
+            return ''
+        ingredients = ingredients.rstrip(' ').replace('\n', '')
+        comma_indexes = [i for i in range(len(ingredients)) if ingredients[i] == ',']
+        if ingredients[-1] == ',':
+            comma_indexes.pop()
+        for comma_index in reversed(comma_indexes):
+            if ingredients[comma_index + 1] != ' ':
+                ingredients = f'{ingredients[:comma_index + 1]} {ingredients[comma_index + 1:]}'
+                # ingredients = ' '.join([ingredients[:comma_index + 1], ingredients[comma_index + 1:]])
+        return ingredients
 
     def save_changes(self):
         def window_close(do='cancel'):
@@ -525,6 +526,15 @@ class LabelMaker:
             self.ingredients_entry.insert('1.0', textbox_contents)
             self.ingredients_entry.mark_set(INSERT, END)
             return
+        if self.autoformat:
+            cursor_pos = int(self.ingredients_entry.index(INSERT)[2:])
+            ingredients = self.ingredients_entry.get('1.0', END).replace('\n', '')
+            pos_check = ingredients[cursor_pos:]
+            self.ingredients_entry.delete('1.0', END)
+            self.ingredients_entry.insert('1.0', formatted_txt := self.format_ingredients(ingredients))
+            txt_diff = len(formatted_txt) - len(ingredients)
+            offset = txt_diff - (len(self.format_ingredients(pos_check)) - len(pos_check))
+            self.ingredients_entry.mark_set(INSERT, f'1.{cursor_pos + offset}')
         if self.selected_item:
             self.selected_item.edit_item(self.ingredients_entry.get('1.0', END))
             self.update_combobox_text_only(self.selected_item.get_name())
