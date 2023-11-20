@@ -474,7 +474,7 @@ class LabelMaker:
             return ''
         ingredients = ingredients.rstrip(' ').replace('\n', '')
         comma_indexes = [i for i in range(len(ingredients)) if ingredients[i] == ',']
-        if ingredients[-1] == ',':
+        if ingredients and ingredients[-1] == ',':
             comma_indexes.pop()
         for comma_index in reversed(comma_indexes):
             if ingredients[comma_index + 1] != ' ':
@@ -516,7 +516,7 @@ class LabelMaker:
         cancel_button.place(x=125, y=32, anchor='nw')
 
     def textbox_edited(self, event):
-        if event.keysym in ['Right', 'Left', 'Up', 'Down']:
+        if event.keysym in ['Right', 'Left', 'Up', 'Down', 'space']:
             return
         if event.keysym == 'Return':
             # self.save_item()
@@ -527,14 +527,23 @@ class LabelMaker:
             self.ingredients_entry.mark_set(INSERT, END)
             return
         if self.autoformat:
-            cursor_pos = int(self.ingredients_entry.index(INSERT)[2:])
             ingredients = self.ingredients_entry.get('1.0', END).replace('\n', '')
-            pos_check = ingredients[cursor_pos:]
+            go_to_end = False
+            if int(self.ingredients_entry.index(INSERT)[:1]) > 1:
+                go_to_end = True
+            else:
+                cursor_pos = int(self.ingredients_entry.index(INSERT)[2:])
+                pos_check = ingredients[cursor_pos:]
             self.ingredients_entry.delete('1.0', END)
             self.ingredients_entry.insert('1.0', formatted_txt := self.format_ingredients(ingredients))
-            txt_diff = len(formatted_txt) - len(ingredients)
-            offset = txt_diff - (len(self.format_ingredients(pos_check)) - len(pos_check))
-            self.ingredients_entry.mark_set(INSERT, f'1.{cursor_pos + offset}')
+            if go_to_end:
+                self.ingredients_entry.mark_set(INSERT, END)
+            else:
+                txt_diff = abs(len(formatted_txt) - len(ingredients))
+                # noinspection PyUnboundLocalVariable
+                offset = txt_diff - abs(len(self.format_ingredients(pos_check)) - len(pos_check))
+                # noinspection PyUnboundLocalVariable
+                self.ingredients_entry.mark_set(INSERT, f'1.{cursor_pos + offset}')
         if self.selected_item:
             self.selected_item.edit_item(self.ingredients_entry.get('1.0', END))
             self.update_combobox_text_only(self.selected_item.get_name())
